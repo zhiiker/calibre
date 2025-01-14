@@ -11,18 +11,26 @@
 # All configuration values have a default value; values that are commented out
 # serve to show the default value.
 
-import sys, os, errno
+import errno
+import os
+import sys
 from datetime import date
 
 # If your extensions are in another directory, add it here.
 base = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(base)
 sys.path.insert(0, os.path.dirname(base))
 from setup import __appname__, __version__
-from calibre.utils.localization import localize_website_link
+
+sys.path.append(base)
+
 import custom
+
+import calibre.utils.img as cimg
+from calibre.utils.localization import localize_website_link
+
 del sys.path[0]
-custom
+
+custom, cimg
 # General configuration
 # ---------------------
 
@@ -36,7 +44,7 @@ extensions = ['sphinx.ext.autodoc', 'custom', 'sidebar_toc', 'sphinx.ext.viewcod
 templates_path = ['templates']
 
 # The suffix of source filenames.
-source_suffix = '.rst'
+source_suffix = {'.rst': 'restructuredtext'}
 
 # The master toctree document.
 master_doc = 'index' if tags.has('online') else 'simple_index'  # noqa
@@ -137,7 +145,6 @@ html_theme_options = {
     'show_powered_by': False,
     'fixed_sidebar': True,
     'sidebar_collapse': True,
-    'analytics_id': 'UA-20736318-1',
     'github_button': False,
 }
 
@@ -158,6 +165,7 @@ html_last_updated_fmt = '%b %d, %Y'
 html_short_title = _('Start')
 
 from calibre.utils.localization import get_language
+
 html_context = {}
 html_context['other_languages'] = [
     (lc, get_language(lc)) for lc in os.environ.get('ALL_USER_MANUAL_LANGUAGES', '').split() if lc != language]
@@ -179,7 +187,7 @@ html_context['homepage_url'] = website
 if needs_localization:
     html_context['homepage_url'] = localize_website_link(html_context['homepage_url'])
 extlinks = {
-    'website_base': (website, None),
+    'website_base': (f'{website}/%s', None),
     'website': (html_context['homepage_url'] + '/%s', None),
     'download_file': (f'{website}/downloads/%s', '%s'),
 }

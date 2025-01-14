@@ -4,11 +4,16 @@ __license__ = 'GPL v3'
 __copyright__ = '2011, Kovid Goyal <kovid@kovidgoyal.net>'
 __docformat__ = 'restructuredtext en'
 
-import os, time, sys, shutil, json, mimetypes
-from pprint import pprint
+import json
+import mimetypes
+import os
+import shutil
+import sys
+import time
 from argparse import ArgumentParser, FileType
-from subprocess import check_call
 from collections import OrderedDict
+from pprint import pprint
+from subprocess import check_call
 
 
 class ReadFileWithProgressReporting:  # {{{
@@ -338,11 +343,10 @@ def generate_index():  # {{{
                 files = os.listdir('.')
                 windows = [x for x in files if x.endswith('.msi')]
                 if windows:
+                    def wdesc(x):
+                        return 'Windows ' + ('64-bit' if '-64bit-' in x else '32-bit') + ' Installer'
                     windows = [
-                        '<li><a href="{0}" title="{1}">{1}</a></li>'.format(
-                            x, 'Windows 64-bit Installer'
-                            if '64bit' in x else 'Windows 32-bit Installer'
-                        ) for x in windows
+                        '<li><a href="{0}" title="{1}">{1}</a></li>'.format(x, wdesc(x)) for x in windows
                     ]
                     body.append(
                         '<dt>Windows</dt><dd><ul>{}</ul></dd>'.format(
@@ -365,11 +369,14 @@ def generate_index():  # {{{
                     x for x in files if x.endswith('.txz') or x.endswith('tar.bz2')
                 ]
                 if linux:
+                    def ldesc(x):
+                        if 'i686' in x:
+                            return 'Linux Intel 32-bit binary'
+                        if 'arm64' in x:
+                            return 'Linux ARM 64-bit binary'
+                        return 'Linux Intel 64-bit binary'
                     linux = [
-                        '<li><a href="{0}" title="{1}">{1}</a></li>'.format(
-                            x, 'Linux 64-bit binary'
-                            if 'x86_64' in x else 'Linux 32-bit binary'
-                        ) for x in linux
+                        '<li><a href="{0}" title="{1}">{1}</a></li>'.format(x, ldesc(x)) for x in linux
                     ]
                     body.append(
                         '<dt>Linux</dt><dd><ul>{}</ul></dd>'.format(

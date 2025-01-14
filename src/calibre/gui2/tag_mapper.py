@@ -2,19 +2,42 @@
 # License: GPLv3 Copyright: 2015, Kovid Goyal <kovid at kovidgoyal.net>
 
 
-from collections import OrderedDict
 import textwrap
+from collections import OrderedDict
 
 from qt.core import (
-    QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QListWidget, QIcon, QDialog,
-    QSize, QComboBox, QLineEdit, QListWidgetItem, QStyledItemDelegate, QAbstractItemView,
-    QStaticText, Qt, QStyle, QToolButton, QInputDialog, QMenu, pyqtSignal, QPalette, QItemSelectionModel, QDialogButtonBox
+    QAbstractItemView,
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QHBoxLayout,
+    QIcon,
+    QInputDialog,
+    QItemSelectionModel,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QListWidgetItem,
+    QMenu,
+    QPalette,
+    QPushButton,
+    QSize,
+    QStaticText,
+    QStyle,
+    QStyledItemDelegate,
+    Qt,
+    QToolButton,
+    QVBoxLayout,
+    QWidget,
+    pyqtSignal,
 )
 
-from calibre.ebooks.metadata.tag_mapper import map_tags, compile_pat
-from calibre.gui2 import error_dialog, Application, question_dialog
+from calibre.ebooks.metadata.tag_mapper import compile_pat, map_tags
+from calibre.gui2 import Application, error_dialog, question_dialog
+from calibre.gui2.complete2 import EditWithComplete
 from calibre.gui2.ui import get_gui
 from calibre.gui2.widgets2 import Dialog
+from calibre.startup import connect_lambda
 from calibre.utils.config import JSONConfig
 from calibre.utils.localization import localize_user_manual_link
 from polyglot.builtins import iteritems
@@ -35,6 +58,16 @@ class QueryEdit(QLineEdit):
         menu = self.createStandardContextMenu()
         self.parent().specialise_context_menu(menu)
         menu.exec(ev.globalPos())
+
+
+class SingleTagEdit(EditWithComplete):
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.set_separator(None)
+        gui = get_gui()
+        if gui:
+            self.update_items_cache(gui.current_db.new_api.all_field_names(getattr(parent, 'SINGLE_EDIT_FIELD_NAME', 'tags')))
 
 
 class RuleEdit(QWidget):
@@ -71,6 +104,7 @@ class RuleEdit(QWidget):
         ' tags, you can replace with parts of the matched pattern. See '
         ' the User Manual on how to use regular expressions for details.')
     REGEXP_HELP_TEXT = _('For help with regex pattern matching, see the <a href="%s">User Manual</a>')
+    SINGLE_EDIT_FIELD_NAME = 'tags'
 
     def __init__(self, parent=None):
         QWidget.__init__(self, parent)
@@ -98,7 +132,7 @@ class RuleEdit(QWidget):
         self.query = q = QueryEdit(self)
         h.addWidget(q)
         self.tag_editor_button = b = QToolButton(self)
-        b.setIcon(QIcon(I('chapters.png')))
+        b.setIcon(QIcon.ic('chapters.png'))
         b.setToolTip(_('Edit the list of tags with the Tag editor'))
         h.addWidget(b), b.clicked.connect(self.edit_tags)
         b.setVisible(self.can_use_tag_editor)
@@ -106,7 +140,7 @@ class RuleEdit(QWidget):
         l.addLayout(h)
         self.la3 = la = QLabel(self.REPLACE_TEXT + '\xa0')
         h.addWidget(la)
-        self.replace = r = QLineEdit(self)
+        self.replace = r = SingleTagEdit(self)
         h.addWidget(r)
         self.regex_help = la = QLabel('<p>' + self.REGEXP_HELP_TEXT % localize_user_manual_link(
         'https://manual.calibre-ebook.com/regexp.html'))
@@ -285,10 +319,10 @@ class Rules(QWidget):
         l.addWidget(la)
         self.h = h = QHBoxLayout()
         l.addLayout(h)
-        self.add_button = b = QPushButton(QIcon(I('plus.png')), _('&Add rule'), self)
+        self.add_button = b = QPushButton(QIcon.ic('plus.png'), _('&Add rule'), self)
         b.clicked.connect(self.add_rule)
         h.addWidget(b)
-        self.remove_button = b = QPushButton(QIcon(I('minus.png')), _('&Remove rule(s)'), self)
+        self.remove_button = b = QPushButton(QIcon.ic('minus.png'), _('&Remove rule(s)'), self)
         b.clicked.connect(self.remove_rules)
         h.addWidget(b)
         self.h3 = h = QHBoxLayout()
@@ -307,11 +341,11 @@ class Rules(QWidget):
         self.l2 = l = QVBoxLayout()
         h.addLayout(l)
         self.up_button = b = QToolButton(self)
-        b.setIcon(QIcon(I('arrow-up.png'))), b.setToolTip(_('Move current rule up'))
+        b.setIcon(QIcon.ic('arrow-up.png')), b.setToolTip(_('Move current rule up'))
         b.clicked.connect(self.move_up)
         l.addWidget(b)
         self.down_button = b = QToolButton(self)
-        b.setIcon(QIcon(I('arrow-down.png'))), b.setToolTip(_('Move current rule down'))
+        b.setIcon(QIcon.ic('arrow-down.png')), b.setToolTip(_('Move current rule down'))
         b.clicked.connect(self.move_down)
         l.addStretch(10), l.addWidget(b)
 
@@ -379,7 +413,7 @@ class Rules(QWidget):
     @rules.setter
     def rules(self, rules):
         self.rule_list.clear()
-        for rule in rules:
+        for rule in (rules or ()):
             if self.ACTION_KEY in rule and 'match_type' in rule and 'query' in rule:
                 self.RuleItemClass(rule, self.rule_list)
 
@@ -433,6 +467,9 @@ class Tester(Dialog):
 
 class SaveLoadMixin:
 
+    ruleset_changed = pyqtSignal()
+    base_window_title = ''
+
     def save_ruleset(self):
         if not self.rules:
             error_dialog(self, _('No rules'), _(
@@ -449,8 +486,13 @@ class SaveLoadMixin:
             rules = self.rules
             if rules:
                 self.PREFS_OBJECT[text] = self.rules
-            elif text in self.PREFS_OBJECT:
+                self.loaded_ruleset = text
+                self.ruleset_changed.emit()
+            elif text in self.PREFS_OBJECT: # Don't think we can get here because 'if rules:' is always True
                 del self.PREFS_OBJECT[text]
+                if self.loaded_ruleset == text:
+                    self.loaded_ruleset = ''
+                    self.ruleset_changed.emit()
             self.build_load_menu()
 
     def build_load_menu(self):
@@ -472,9 +514,13 @@ class SaveLoadMixin:
     def load_ruleset(self, name):
         self.rules = self.PREFS_OBJECT[name]
         self.loaded_ruleset = name
+        self.ruleset_changed.emit()
 
     def delete_ruleset(self, name):
         del self.PREFS_OBJECT[name]
+        if self.loaded_ruleset == name:
+            self.loaded_ruleset = ''
+            self.ruleset_changed.emit()
         self.build_load_menu()
 
 
@@ -511,6 +557,18 @@ class RulesDialog(Dialog, SaveLoadMixin):
         self.build_load_menu()
         self.test_button = b = self.bb.addButton(_('&Test rules'), QDialogButtonBox.ButtonRole.ActionRole)
         b.clicked.connect(self.test_rules)
+        self.ruleset_changed.connect(self.update_title_bar)
+
+    def update_title_bar(self):
+        if self.base_window_title:
+            if self.loaded_ruleset:
+                self.setWindowTitle(_('{base} - (ruleset: {name})').format(base=self.base_window_title, name=self.loaded_ruleset))
+            else:
+                self.setWindowTitle(self.base_window_title)
+
+    def exec(self):
+        self.base_window_title = self.windowTitle()
+        return super().exec()
 
     def extra_bottom_widget(self):
         pass

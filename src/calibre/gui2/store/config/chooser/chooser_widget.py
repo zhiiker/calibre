@@ -2,7 +2,7 @@ __license__ = 'GPL 3'
 __copyright__ = '2011, John Schember <john@nachtimwald.com>'
 __docformat__ = 'restructuredtext en'
 
-from qt.core import QWidget, QIcon, QDialog, QComboBox, QLineEdit
+from qt.core import QComboBox, QDialog, QIcon, QLineEdit, QWidget
 
 from calibre.gui2.store.config.chooser.adv_search_builder import AdvSearchBuilderDialog
 from calibre.gui2.store.config.chooser.chooser_widget_ui import Ui_Form
@@ -17,7 +17,7 @@ class StoreChooserWidget(QWidget, Ui_Form):
         self.query.initialize('store_config_chooser_query')
         self.query.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
         self.query.setMinimumContentsLength(25)
-        self.adv_search_action = ac = self.query.lineEdit().addAction(QIcon(I('gear.png')), QLineEdit.ActionPosition.LeadingPosition)
+        self.adv_search_action = ac = self.query.lineEdit().addAction(QIcon.ic('gear.png'), QLineEdit.ActionPosition.LeadingPosition)
         ac.triggered.connect(self.build_adv_search)
         ac.setToolTip(_('Advanced search'))
         self.search.clicked.connect(self.do_search)

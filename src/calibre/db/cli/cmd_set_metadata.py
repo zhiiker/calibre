@@ -59,14 +59,14 @@ def option_parser(get_parser, args):
     parser = get_parser(
         _(
             '''
-%prog set_metadata [options] id [/path/to/metadata.opf]
+%prog set_metadata [options] book_id [/path/to/metadata.opf]
 
-Set the metadata stored in the calibre database for the book identified by id
-from the OPF file metadata.opf. id is an id number from the search command. You
-can get a quick feel for the OPF format by using the --as-opf switch to the
-show_metadata command. You can also set the metadata of individual fields with
-the --field option. If you use the --field option, there is no need to specify
-an OPF file.
+Set the metadata stored in the calibre database for the book identified by
+book_id from the OPF file metadata.opf. book_id is a book id number from the
+search command. You can get a quick feel for the OPF format by using the
+--as-opf switch to the show_metadata command. You can also set the metadata of
+individual fields with the --field option. If you use the --field option, there
+is no need to specify an OPF file.
 '''
         )
     )
@@ -143,7 +143,7 @@ def main(opts, args, dbctx):
         opf = os.path.abspath(args[1])
         if not os.path.exists(opf):
             raise SystemExit(_('The OPF file %s does not exist') % opf)
-        with lopen(opf, 'rb') as stream:
+        with open(opf, 'rb') as stream:
             mi = get_metadata(stream)[0]
         if mi.cover:
             mi.cover = os.path.join(os.path.dirname(opf), os.path.relpath(mi.cover, os.getcwd()))
@@ -160,7 +160,7 @@ def main(opts, args, dbctx):
             if field == 'sort':
                 field = 'title_sort'
             if field not in fields:
-                raise SystemExit(_('%s is not a known field' % field))
+                raise SystemExit(_('{} is not a known field').format(field))
             if field == 'cover':
                 val = dbctx.path(os.path.abspath(os.path.expanduser(val)))
             else:
@@ -173,7 +173,7 @@ def main(opts, args, dbctx):
                 try:
                     val = float(val)
                 except Exception:
-                    raise SystemExit('The value %r is not a valid series index' % val)
+                    raise SystemExit(_('The value {!r} is not a valid series index').format(val))
             fvals.append((field, val))
 
         final_mi = dbctx.run('set_metadata', 'fields', book_id, fvals)

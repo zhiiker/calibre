@@ -7,17 +7,37 @@ __docformat__ = 'restructuredtext en'
 
 import weakref
 
-from qt.core import (QWidget, QListWidgetItem, Qt, QToolButton, QLabel,
-        QTabWidget, QGridLayout, QListWidget, QIcon, QLineEdit, QVBoxLayout,
-        QPushButton, QGroupBox, QScrollArea, QHBoxLayout, QComboBox,
-        pyqtSignal, QSizePolicy, QDialog, QDialogButtonBox, QPlainTextEdit,
-        QApplication, QSize)
+from qt.core import (
+    QApplication,
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QGridLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QIcon,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QListWidgetItem,
+    QPlainTextEdit,
+    QPushButton,
+    QScrollArea,
+    QSize,
+    QSizePolicy,
+    Qt,
+    QTabWidget,
+    QToolButton,
+    QVBoxLayout,
+    QWidget,
+    pyqtSignal,
+)
 
 from calibre.ebooks import BOOK_EXTENSIONS
 from calibre.gui2 import error_dialog
+from calibre.gui2.device_drivers.mtp_folder_browser import Browser, IgnoredFolders
 from calibre.gui2.dialogs.template_dialog import TemplateDialog
 from calibre.utils.date import parse_date
-from calibre.gui2.device_drivers.mtp_folder_browser import Browser, IgnoredFolders
 from polyglot.builtins import iteritems
 
 
@@ -38,12 +58,12 @@ class FormatsConfig(QWidget):  # {{{
             item.setCheckState(Qt.CheckState.Checked if fmt in format_map else Qt.CheckState.Unchecked)
 
         self.button_up = b = QToolButton(self)
-        b.setIcon(QIcon(I('arrow-up.png')))
+        b.setIcon(QIcon.ic('arrow-up.png'))
         l.addWidget(b, 0, 1)
         b.clicked.connect(self.up)
 
         self.button_down = b = QToolButton(self)
-        b.setIcon(QIcon(I('arrow-down.png')))
+        b.setIcon(QIcon.ic('arrow-down.png'))
         l.addWidget(b, 2, 1)
         b.clicked.connect(self.down)
 
@@ -136,7 +156,7 @@ class SendToConfig(QWidget):  # {{{
         l.addWidget(t, 1, 0)
         self.b = b = QToolButton()
         l.addWidget(b, 1, 1)
-        b.setIcon(QIcon(I('document_open.png')))
+        b.setIcon(QIcon.ic('document_open.png'))
         b.clicked.connect(self.browse)
         b.setToolTip(_('Browse for a folder on the device'))
         self._device = weakref.ref(device)
@@ -225,10 +245,10 @@ class Rule(QWidget):
         l.addWidget(f)
         self.b = b = QToolButton()
         l.addWidget(b)
-        b.setIcon(QIcon(I('document_open.png')))
+        b.setIcon(QIcon.ic('document_open.png'))
         b.clicked.connect(self.browse)
         b.setToolTip(_('Browse for a folder on the device'))
-        self.rb = rb = QPushButton(QIcon(I('list_remove.png')),
+        self.rb = rb = QPushButton(QIcon.ic('list_remove.png'),
                 _('&Remove rule'), self)
         l.addWidget(rb)
         rb.clicked.connect(self.removed)
@@ -302,7 +322,7 @@ class FormatRules(QGroupBox):
         if not self.widgets:
             self.add_rule()
 
-        self.b = b = QPushButton(QIcon(I('plus.png')), _('Add a &new rule'))
+        self.b = b = QPushButton(QIcon.ic('plus.png'), _('Add a &new rule'))
         l.addWidget(b)
         b.clicked.connect(self.add_rule)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Ignored)
@@ -375,17 +395,17 @@ class MTPConfig(QTabWidget):
             self.base.la = la = QLabel(_(
                 'Choose the formats to send to the %s')%self.device.current_friendly_name)
             la.setWordWrap(True)
-            self.base.b = b = QPushButton(QIcon(I('list_remove.png')),
+            self.base.b = b = QPushButton(QIcon.ic('list_remove.png'),
                 _('&Ignore the %s in calibre')%device.current_friendly_name,
                 self.base)
             b.clicked.connect(self.ignore_device)
             self.config_ign_folders_button = cif = QPushButton(
-                QIcon(I('tb_folder.png')), _('Change scanned &folders'))
+                QIcon.ic('tb_folder.png'), _('Change scanned &folders'))
             cif.setStyleSheet(
                     'QPushButton { font-weight: bold; }')
             if highlight_ignored_folders:
                 cif.setIconSize(QSize(64, 64))
-            self.show_debug_button = bd = QPushButton(QIcon(I('debug.png')),
+            self.show_debug_button = bd = QPushButton(QIcon.ic('debug.png'),
                     _('Show device information'))
             bd.clicked.connect(self.show_debug_info)
             cif.clicked.connect(self.change_ignored_folders)
@@ -514,7 +534,7 @@ class SendError(QDialog):
         bb.rejected.connect(self.reject)
         l.addWidget(bb)
         self.setWindowTitle(_('Cannot send to %s')%error.folder)
-        self.setWindowIcon(QIcon(I('dialog_error.png')))
+        self.setWindowIcon(QIcon.ic('dialog_error.png'))
 
         self.resize(self.sizeHint())
 
@@ -527,9 +547,9 @@ class SendError(QDialog):
 
 
 if __name__ == '__main__':
-    from calibre.gui2 import Application
     from calibre.devices.mtp.driver import MTP_DEVICE
     from calibre.devices.scanner import DeviceScanner
+    from calibre.gui2 import Application
     s = DeviceScanner()
     s.scan()
     app = Application([])

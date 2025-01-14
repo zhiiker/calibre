@@ -6,25 +6,33 @@ __license__   = 'GPL v3'
 __copyright__ = '2008, Marshall T. Vandegrift <llasram@gmail.com>'
 __docformat__ = 'restructuredtext en'
 
-import os, re, logging, sys, numbers
+import logging
+import numbers
+import os
+import re
+import sys
 from collections import defaultdict
 from itertools import count
 from operator import attrgetter
+from typing import Optional
 
 from lxml import etree, html
-from calibre import force_unicode
-from calibre.constants import filesystem_encoding, __version__
-from calibre.translations.dynamic import translate
-from calibre.utils.xml_parse import safe_xml_fromstring
+
+from calibre import as_unicode, force_unicode, get_types_map, isbytestring
+from calibre.constants import __version__, filesystem_encoding
 from calibre.ebooks.chardet import xml_to_unicode
 from calibre.ebooks.conversion.preprocess import CSSPreProcessor
-from calibre import (isbytestring, as_unicode, get_types_map)
-from calibre.ebooks.oeb.parse_utils import barename, XHTML_NS, namespace, XHTML, parse_html, NotHTML
+from calibre.ebooks.oeb.parse_utils import XHTML, XHTML_NS, NotHTML, barename, namespace, parse_html
+from calibre.translations.dynamic import translate
 from calibre.utils.cleantext import clean_xml_chars
-from calibre.utils.short_uuid import uuid4
-from polyglot.builtins import iteritems, string_or_bytes, itervalues, codepoint_to_chr
-from polyglot.urllib import unquote as urlunquote, urldefrag, urljoin, urlparse, urlunparse
 from calibre.utils.icu import numeric_sort_key
+from calibre.utils.icu import title_case as icu_title
+from calibre.utils.localization import __, is_rtl_lang
+from calibre.utils.short_uuid import uuid4
+from calibre.utils.xml_parse import safe_xml_fromstring
+from polyglot.builtins import codepoint_to_chr, iteritems, itervalues, string_or_bytes
+from polyglot.urllib import unquote as urlunquote
+from polyglot.urllib import urldefrag, urljoin, urlparse, urlunparse
 
 XML_NS       = 'http://www.w3.org/XML/1998/namespace'
 OEB_DOC_NS   = 'http://openebook.org/namespaces/oeb-document/1.0/'
@@ -45,13 +53,14 @@ RE_NS        = 'http://exslt.org/regular-expressions'
 MBP_NS       = 'http://www.mobipocket.com'
 EPUB_NS      = 'http://www.idpf.org/2007/ops'
 MATHML_NS    = 'http://www.w3.org/1998/Math/MathML'
+SMIL_NS      = 'http://www.w3.org/ns/SMIL'
 
 XPNSMAP      = {
-        'h': XHTML_NS, 'o1': OPF1_NS, 'o2': OPF2_NS, 'd09': DC09_NS,
-        'd10': DC10_NS, 'd11': DC11_NS, 'xsi': XSI_NS, 'dt': DCTERMS_NS,
-        'ncx': NCX_NS, 'svg': SVG_NS, 'xl': XLINK_NS, 're': RE_NS,
-        'mathml': MATHML_NS, 'mbp': MBP_NS, 'calibre': CALIBRE_NS,
-        'epub':EPUB_NS
+    'h': XHTML_NS, 'o1': OPF1_NS, 'o2': OPF2_NS, 'd09': DC09_NS,
+    'd10': DC10_NS, 'd11': DC11_NS, 'xsi': XSI_NS, 'dt': DCTERMS_NS,
+    'ncx': NCX_NS, 'svg': SVG_NS, 'xl': XLINK_NS, 're': RE_NS,
+    'mathml': MATHML_NS, 'mbp': MBP_NS, 'calibre': CALIBRE_NS,
+    'epub':EPUB_NS, 'smil': SMIL_NS,
 }
 
 OPF1_NSMAP   = {'dc': DC11_NS, 'oebpackage': OPF1_NS}
@@ -89,6 +98,14 @@ def SVG(name):
 
 def XLINK(name):
     return f'{{{XLINK_NS}}}{name}'
+
+
+def SMIL(name):
+    return f'{{{SMIL_NS}}}{name}'
+
+
+def EPUB(name):
+    return f'{{{EPUB_NS}}}{name}'
 
 
 def CALIBRE(name):
@@ -158,7 +175,7 @@ def itercsslinks(raw):
         yield match.group(1), match.start(1)
 
 
-_link_attrs = set(html.defs.link_attrs) | {XLINK('href'), 'poster'}
+_link_attrs = set(html.defs.link_attrs) | {XLINK('href'), 'poster', 'altimg'}
 
 
 def iterlinks(root, find_links_in_css=True):
@@ -249,7 +266,7 @@ def rewrite_links(root, link_repl_func, resolve_base_href=False):
     If the ``link_repl_func`` returns None, the attribute or
     tag text will be removed completely.
     '''
-    from css_parser import replaceUrls, log, CSSParser
+    from css_parser import CSSParser, log, replaceUrls
     log.setLevel(logging.WARN)
     log.raiseExceptions = False
 
@@ -286,7 +303,7 @@ def rewrite_links(root, link_repl_func, resolve_base_href=False):
         except UnicodeDecodeError:
             continue
 
-        if tag == XHTML('style') and el.text and \
+        if tag in (XHTML('style'), SVG('style')) and el.text and \
                 (_css_url_re.search(el.text) is not None or '@import' in
                         el.text):
             stylesheet = parser.parseString(el.text, validate=False)
@@ -426,11 +443,13 @@ def serialize(data, media_type, pretty_print=False):
     if isinstance(data, str):
         return data.encode('utf-8')
     if hasattr(data, 'cssText'):
+        from calibre.ebooks.oeb.polish.utils import setup_css_parser_serialization
+        setup_css_parser_serialization()
         data = data.cssText
         if isinstance(data, str):
             data = data.encode('utf-8')
         return data + b'\n'
-    return bytes(data)
+    return b'' if data is None else bytes(data)
 
 
 ASCII_CHARS   = frozenset(codepoint_to_chr(x) for x in range(128))
@@ -577,7 +596,7 @@ class DirContainer:
         if path is None:
             path = self.opfname
         path = os.path.join(self.rootdir, self._unquote(path))
-        with lopen(path, 'rb') as f:
+        with open(path, 'rb') as f:
             return f.read()
 
     def write(self, path, data):
@@ -585,7 +604,7 @@ class DirContainer:
         dir = os.path.dirname(path)
         if not os.path.isdir(dir):
             os.makedirs(dir)
-        with lopen(path, 'wb') as f:
+        with open(path, 'wb') as f:
             return f.write(data)
 
     def exists(self, path):
@@ -1008,6 +1027,12 @@ class Manifest:
         # }}}
 
         @property
+        def data_as_bytes_or_none(self) -> Optional[bytes]:
+            if self._loader is None:
+                return None
+            return self._loader(getattr(self, 'html_input_href', self.href))
+
+        @property
         def data(self):
             """Provides MIME type sensitive access to the manifest
             entry's associated content.
@@ -1023,10 +1048,7 @@ class Manifest:
             """
             data = self._data
             if data is None:
-                if self._loader is None:
-                    return None
-                data = self._loader(getattr(self, 'html_input_href',
-                    self.href))
+                data = self.data_as_bytes_or_none
             try:
                 mt = self.media_type.lower()
             except Exception:
@@ -1801,6 +1823,16 @@ class OEBBook:
         self.auto_generated_toc = True
         self._temp_files = []
 
+    def set_page_progression_direction_if_needed(self):
+        if not self.spine.page_progression_direction:
+            try:
+                lang = self.metadata.language[0].value
+                if is_rtl_lang(lang):
+                    self.spine.page_progression_direction = 'rtl'
+            except Exception:
+                raise
+                pass
+
     def clean_temp_files(self):
         for path in self._temp_files:
             try:
@@ -1903,7 +1935,10 @@ class OEBBook:
         return
 
     def _to_ncx(self):
-        lang = str(self.metadata.language[0])
+        try:
+            lang = str(self.metadata.language[0])
+        except IndexError:
+            lang = 'en'
         lang = lang.replace('_', '-')
         ncx = etree.Element(NCX('ncx'),
             attrib={'version': '2005-1', XML('lang'): lang},

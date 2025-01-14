@@ -4,9 +4,7 @@
 
 import textwrap
 
-from qt.core import (
-    QIcon, QLabel, QListWidget, QListWidgetItem, QPushButton, Qt, QVBoxLayout
-)
+from qt.core import QIcon, QLabel, QListWidget, QListWidgetItem, QPushButton, Qt, QVBoxLayout
 
 from calibre.customize.ui import enable_plugin
 from calibre.gui2 import gprefs
@@ -82,7 +80,7 @@ class ConfigWidget(ConfigWidgetBase):
             item.setData(Qt.ItemDataRole.UserRole, dev)
             item.setFlags(Qt.ItemFlag.ItemIsEnabled|Qt.ItemFlag.ItemIsUserCheckable|Qt.ItemFlag.ItemIsSelectable)
             item.setCheckState(Qt.CheckState.Checked)
-            item.setIcon(QIcon(I('plugins.png')))
+            item.setIcon(QIcon.ic('plugins.png'))
         self.device_plugins.sortItems()
         self.device_plugins.blockSignals(False)
 

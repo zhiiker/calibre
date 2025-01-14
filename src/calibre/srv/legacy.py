@@ -17,7 +17,8 @@ from calibre.srv.routes import endpoint
 from calibre.srv.utils import get_library_data, http_date
 from calibre.utils.cleantext import clean_xml_chars
 from calibre.utils.date import dt_as_local, is_date_undefined, timestampfromdt
-from polyglot.builtins import iteritems, string_or_bytes, as_bytes
+from calibre.utils.localization import _
+from polyglot.builtins import as_bytes, iteritems, string_or_bytes
 from polyglot.urllib import urlencode
 
 # /mobile {{{
@@ -253,9 +254,13 @@ def mobile(ctx, rd):
 @endpoint('/browse/{+rest=""}')
 def browse(ctx, rd, rest):
     if rest.startswith('book/'):
+        try:
+            book_id = int(rest[5:])
+        except Exception:
+            raise HTTPRedirect(ctx.url_for(None))
         # implementation of https://bugs.launchpad.net/calibre/+bug/1698411
         # redirect old server book URLs to new URLs
-        redirect = ctx.url_for(None) + '#book_id=' + rest[5:] + "&amp;panel=book_details"
+        redirect = ctx.url_for(None) + f'#book_id={book_id}&amp;panel=book_details'
         from lxml import etree as ET
         return html(ctx, rd, endpoint,
                  E.html(E.head(
@@ -277,4 +282,11 @@ def stanza(ctx, rd, rest):
 def legacy_get(ctx, rd, what, book_id, library_id, filename):
     # See https://www.mobileread.com/forums/showthread.php?p=3531644 for why
     # this is needed for Kobo browsers
-    return get(ctx, rd, what, book_id, library_id)
+    ua = rd.inheaders.get('User-Agent', '')
+    is_old_kindle = 'Kindle/3' in ua
+    ans = get(ctx, rd, what, book_id, library_id)
+    if is_old_kindle:
+        # Content-Disposition causes downloads to fail when the filename has non-ascii chars in it
+        # https://www.mobileread.com/forums/showthread.php?t=364015
+        rd.outheaders.pop('Content-Disposition', '')
+    return ans

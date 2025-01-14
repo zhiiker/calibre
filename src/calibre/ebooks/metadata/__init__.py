@@ -8,14 +8,15 @@ __docformat__ = 'restructuredtext en'
 """
 Provides abstraction for metadata reading.writing from a variety of ebook formats.
 """
-import os, sys, re
+import os
+import re
+import sys
 from contextlib import suppress
 
-from calibre import relpath, guess_type, prints, force_unicode
+from calibre import force_unicode, guess_type, prints, relpath
 from calibre.utils.config_base import tweaks
-from polyglot.builtins import codepoint_to_chr, iteritems, as_unicode
+from polyglot.builtins import as_unicode, iteritems
 from polyglot.urllib import quote, unquote, urlparse
-
 
 try:
     _author_pat = re.compile(tweaks['authors_split_regex'])
@@ -176,8 +177,25 @@ def get_title_sort_pat(lang=None):
     return ans
 
 
-_ignore_starts = '\'"'+''.join(codepoint_to_chr(x) for x in
-        list(range(0x2018, 0x201e))+[0x2032, 0x2033])
+quote_pairs = {
+    # https://en.wikipedia.org/wiki/Quotation_mark
+    '"': ('"',),
+    "'": ("'",),
+    '“': ('”','“'),
+    '”': ('”','”'),
+    '„': ('”','“'),
+    '‚': ('’','‘'),
+    '’': ('’','‘'),
+    '‘': ('’','‘'),
+    '‹': ('›',),
+    '›': ('‹',),
+    '《': ('》',),
+    '〈': ('〉',),
+    '»': ('«', '»'),
+    '«': ('«', '»'),
+    '「': ('」',),
+    '『': ('』',),
+}
 
 
 def title_sort(title, order=None, lang=None):
@@ -186,8 +204,11 @@ def title_sort(title, order=None, lang=None):
     title = title.strip()
     if order == 'strictly_alphabetic':
         return title
-    if title and title[0] in _ignore_starts:
+    if title and title[0] in quote_pairs:
+        q = title[0]
         title = title[1:]
+        if title and title[-1] in quote_pairs[q]:
+            title = title[:-1]
     match = get_title_sort_pat(lang).search(title)
     if match:
         try:
@@ -197,8 +218,11 @@ def title_sort(title, order=None, lang=None):
         else:
             if prep:
                 title = title[len(prep):] + ', ' + prep
-                if title[0] in _ignore_starts:
+                if title[0] in quote_pairs:
+                    q = title[0]
                     title = title[1:]
+                    if title and title[-1] in quote_pairs[q]:
+                        title = title[:-1]
     return title.strip()
 
 
@@ -226,7 +250,7 @@ def fmt_sidx(i, fmt='%.2f', use_roman=False):
         i = float(i)
     except Exception:
         return str(i)
-    if int(i) == float(i):
+    if int(i) == i:
         return roman(int(i)) if use_roman else '%d'%int(i)
     ans = fmt%i
     if '.' in ans:

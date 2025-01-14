@@ -6,8 +6,8 @@ from calibre.constants import preferred_encoding
 from calibre.ebooks.metadata.book import SERIALIZABLE_FIELDS
 from calibre.ebooks.metadata.book.base import Metadata
 from calibre.utils.imghdr import what
-from polyglot.builtins import iteritems
 from polyglot.binary import as_base64_unicode
+from polyglot.builtins import iteritems
 
 
 def ensure_unicode(obj, enc=preferred_encoding):
@@ -23,7 +23,7 @@ def ensure_unicode(obj, enc=preferred_encoding):
 
 
 def serialize_cover(path):
-    with lopen(path, 'rb') as f:
+    with open(path, 'rb') as f:
         cd = f.read()
     return what(None, cd), cd
 

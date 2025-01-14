@@ -5,22 +5,39 @@ __license__   = 'GPL v3'
 __copyright__ = '2009, Kovid Goyal <kovid@kovidgoyal.net>'
 __docformat__ = 'restructuredtext en'
 
-import re, sys
-
+import re
+import sys
 from functools import partial
 
+from qt.core import (
+    QAbstractItemView,
+    QCheckBox,
+    QComboBox,
+    QDoubleSpinBox,
+    QIcon,
+    QInputDialog,
+    QLineEdit,
+    QRadioButton,
+    QSize,
+    QSizePolicy,
+    Qt,
+    QTableWidget,
+    QTableWidgetItem,
+    QTextEdit,
+    QToolButton,
+    QUrl,
+    QVBoxLayout,
+    QWidget,
+    sip,
+)
+
 from calibre.ebooks.conversion.config import load_defaults
-from calibre.gui2 import gprefs, open_url, question_dialog, error_dialog
+from calibre.gui2 import error_dialog, gprefs, open_url, question_dialog
 from calibre.utils.config import JSONConfig
 from calibre.utils.icu import sort_key
 from calibre.utils.localization import localize_user_manual_link
-from polyglot.builtins import native_string_type
 
 from .catalog_epub_mobi_ui import Ui_Form
-from qt.core import (Qt, QAbstractItemView, QCheckBox, QComboBox,
-        QDoubleSpinBox, QIcon, QInputDialog, QLineEdit, QRadioButton,
-        QSize, QSizePolicy, QTableWidget, QTableWidgetItem, QTextEdit, QToolButton,
-        QUrl, QVBoxLayout, QWidget, sip)
 
 
 class PluginWidget(QWidget,Ui_Form):
@@ -369,7 +386,7 @@ class PluginWidget(QWidget,Ui_Form):
                         prefix_rules.append(opt_value)
 
         # Add icon to the reset button, hook textChanged signal
-        self.reset_exclude_genres_tb.setIcon(QIcon(I('trash.png')))
+        self.reset_exclude_genres_tb.setIcon(QIcon.ic('trash.png'))
         self.reset_exclude_genres_tb.clicked.connect(self.exclude_genre_reset)
 
         # Hook textChanged event for exclude_genre QLineEdit
@@ -418,7 +435,7 @@ class PluginWidget(QWidget,Ui_Form):
         # Hook Preset signals
         self.preset_delete_pb.clicked.connect(self.preset_remove)
         self.preset_save_pb.clicked.connect(self.preset_save)
-        self.preset_field.currentIndexChanged[native_string_type].connect(self.preset_change)
+        self.preset_field.currentIndexChanged.connect(self.preset_change)
 
         self.blocking_all_signals = False
 
@@ -613,11 +630,11 @@ class PluginWidget(QWidget,Ui_Form):
         self.preset_field_values = sorted(self.presets, key=sort_key)
         self.preset_field.addItems(self.preset_field_values)
 
-    def preset_change(self, item_name):
+    def preset_change(self, idx):
         '''
         Update catalog options from current preset
         '''
-        if not item_name:
+        if idx <= 0:
             return
 
         current_preset = self.preset_field.currentText()
@@ -840,7 +857,7 @@ class CheckableTableWidgetItem(QTableWidgetItem):
 
     def __init__(self, checked=False, is_tristate=False):
         QTableWidgetItem.__init__(self, '')
-        self.setFlags(Qt.ItemFlags(Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsEnabled))
+        self.setFlags(Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsEnabled)
         if is_tristate:
             self.setFlags(self.flags() | Qt.ItemFlag.ItemIsTristate)
         if checked:
@@ -932,28 +949,28 @@ class GenericRulesTable(QTableWidget):
         self.move_rule_up_tb = QToolButton()
         self.move_rule_up_tb.setObjectName("move_rule_up_tb")
         self.move_rule_up_tb.setToolTip('Move rule up')
-        self.move_rule_up_tb.setIcon(QIcon(I('arrow-up.png')))
+        self.move_rule_up_tb.setIcon(QIcon.ic('arrow-up.png'))
         self.move_rule_up_tb.clicked.connect(self.move_row_up)
         vbl.addWidget(self.move_rule_up_tb)
 
         self.add_rule_tb = QToolButton()
         self.add_rule_tb.setObjectName("add_rule_tb")
         self.add_rule_tb.setToolTip('Add a new rule')
-        self.add_rule_tb.setIcon(QIcon(I('plus.png')))
+        self.add_rule_tb.setIcon(QIcon.ic('plus.png'))
         self.add_rule_tb.clicked.connect(self.add_row)
         vbl.addWidget(self.add_rule_tb)
 
         self.delete_rule_tb = QToolButton()
         self.delete_rule_tb.setObjectName("delete_rule_tb")
         self.delete_rule_tb.setToolTip('Delete selected rule')
-        self.delete_rule_tb.setIcon(QIcon(I('list_remove.png')))
+        self.delete_rule_tb.setIcon(QIcon.ic('list_remove.png'))
         self.delete_rule_tb.clicked.connect(self.delete_row)
         vbl.addWidget(self.delete_rule_tb)
 
         self.move_rule_down_tb = QToolButton()
         self.move_rule_down_tb.setObjectName("move_rule_down_tb")
         self.move_rule_down_tb.setToolTip('Move rule down')
-        self.move_rule_down_tb.setIcon(QIcon(I('arrow-down.png')))
+        self.move_rule_down_tb.setIcon(QIcon.ic('arrow-down.png'))
         self.move_rule_down_tb.clicked.connect(self.move_row_down)
         vbl.addWidget(self.move_rule_down_tb)
 
@@ -1097,7 +1114,7 @@ class GenericRulesTable(QTableWidget):
         # Format of rules list is different if default values vs retrieved JSON
         # Hack to normalize list style
         rules = self.rules
-        if rules and type(rules[0]) is list:
+        if rules and isinstance(rules[0], list):
             rules = rules[0]
         self.setFocus()
         rules = sorted(rules, key=lambda k: k['ordinal'])

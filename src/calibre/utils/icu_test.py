@@ -4,11 +4,12 @@
 __license__ = 'GPL v3'
 __copyright__ = '2014, Kovid Goyal <kovid at kovidgoyal.net>'
 
-import unittest, sys
+import sys
+import unittest
 from contextlib import contextmanager
 
 import calibre.utils.icu as icu
-from polyglot.builtins import iteritems, cmp
+from polyglot.builtins import cmp, iteritems
 
 
 @contextmanager
@@ -112,6 +113,23 @@ class TestICU(unittest.TestCase):
         self.assertTrue(icu.contains('', ''))
         self.assertFalse(icu.contains('xxx', 'xx'))
         self.assertTrue(icu.primary_contains('pena', 'peña'))
+        x = icu.primary_collator()
+        self.ae(x.get_attribute(icu._icu.UCOL_STRENGTH), icu._icu.UCOL_PRIMARY),
+        self.ae((0, 4), icu.primary_no_punc_find('pena"', 'peña'))
+        self.ae((0, 13), icu.primary_no_punc_find("typographers", 'typographer’s'))
+        self.ae((0, 7), icu.primary_no_punc_find('abcd', 'a\u00adb\u200cc\u200dd'))
+        self.ae((0, 5), icu.primary_no_punc_find('abcd', 'ab cd'))
+        # test find all
+        m = []
+        def a(p, l):
+            return m.append((p, l))
+        icu.primary_collator_without_punctuation().find_all('a', 'a a🐱a', a)
+        self.ae(m, [(0, 1), (2, 1), (5, 1)])
+        # test find whole words
+        c = icu.primary_collator_without_punctuation()
+        self.ae(c.find('a', 'abc a bc'), (0, 1))
+        self.ae(c.find('a', 'abc a bc', True), (4, 1))
+        self.ae(c.find('pena', 'a peñaabc peña', True), (10, 4))
 
     def test_collation_order(self):
         'Testing collation ordering'
@@ -184,7 +202,8 @@ class TestICU(unittest.TestCase):
 
     def test_break_iterator(self):
         ' Test the break iterator '
-        from calibre.spell.break_iterator import split_into_words as split, index_of, split_into_words_and_positions, count_words
+        from calibre.spell.break_iterator import count_words, index_of, split_into_words_and_positions
+        from calibre.spell.break_iterator import split_into_words as split
         for q in ('one two three', ' one two three', 'one\ntwo  three ', ):
             self.ae(split(str(q)), ['one', 'two', 'three'], 'Failed to split: %r' % q)
         self.ae(split('I I\'m'), ['I', "I'm"])
@@ -227,6 +246,26 @@ class TestICU(unittest.TestCase):
         ):
             fpos = index_of(needle, haystack)
             self.ae(pos, fpos, 'Failed to find index of %r in %r (%d != %d)' % (needle, haystack, pos, fpos))
+
+    def test_remove_accents(self):
+        for func in (icu.remove_accents_icu, icu.remove_accents_regex):
+            for q, expected in {
+                'MännÄr': 'MannAr', 'Peña': 'Pena', 'Kátia': 'Katia',
+                'Málaga': 'Malaga', 'François': 'Francois', 'Phút Hơn': 'Phut Hon',
+                '中文':'中文'
+            }.items():
+                self.ae(expected, func(q))
+
+    def test_split_into_sentences(self):
+        from calibre.spell.break_iterator import split_into_sentences_for_tts
+        for sentence, expected in {
+            'hello.': [(0, 'hello.')],
+            'hello. I love you. Another small sentence. Fini.': [(0, 'hello. I love you. Another small sentence.'), (43, 'Fini.')],
+            'a very long sentence to be split into at least two smaller sentences': [
+                (0, 'a very long sentence to be split into at least two'), (51, 'smaller sentences')],
+            'hello\u2029i love you': [(0, 'hello'), (6, 'i love you')],
+        }.items():
+            self.ae(expected, list(split_into_sentences_for_tts(sentence, max_sentence_length=40)))
 
 
 def find_tests():

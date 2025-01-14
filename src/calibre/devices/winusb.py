@@ -2,21 +2,39 @@
 # License: GPLv3 Copyright: 2016, Kovid Goyal <kovid at kovidgoyal.net>
 
 
-import os, string, re, sys, errno
-from collections import namedtuple, defaultdict
-from operator import itemgetter
+import errno
+import os
+import re
+import string
+from collections import defaultdict, namedtuple
 from ctypes import (
-    Structure, POINTER, c_ubyte, windll, byref, c_void_p, WINFUNCTYPE, c_uint,
-    WinError, get_last_error, sizeof, c_wchar, create_string_buffer, cast,
-    memset, wstring_at, addressof, create_unicode_buffer, string_at, c_uint64 as QWORD
+    POINTER,
+    WINFUNCTYPE,
+    Structure,
+    WinError,
+    addressof,
+    byref,
+    c_ubyte,
+    c_uint,
+    c_void_p,
+    c_wchar,
+    cast,
+    create_string_buffer,
+    create_unicode_buffer,
+    get_last_error,
+    memset,
+    sizeof,
+    string_at,
+    windll,
+    wstring_at,
 )
-from ctypes.wintypes import DWORD, WORD, ULONG, LPCWSTR, HWND, BOOL, LPWSTR, UINT, BYTE, HANDLE, USHORT
-from pprint import pprint, pformat
+from ctypes import c_uint64 as QWORD
+from ctypes.wintypes import BOOL, BYTE, DWORD, HANDLE, HWND, LPCWSTR, LPWSTR, UINT, ULONG, USHORT, WORD
+from operator import itemgetter
+from pprint import pformat, pprint
+
+from calibre import as_unicode, prints
 from polyglot.builtins import iteritems, itervalues
-
-from calibre import prints, as_unicode
-
-is64bit = sys.maxsize > (1 << 32)
 
 try:
     import winreg
@@ -289,27 +307,27 @@ SPDRP_LOCATION_PATHS = DWORD(0x00000023)
 
 CR_CODES, CR_CODE_NAMES = {}, {}
 for line in '''\
-#define CR_SUCCESS                  			0x00000000
+#define CR_SUCCESS                        0x00000000
 #define CR_DEFAULT                        0x00000001
 #define CR_OUT_OF_MEMORY                  0x00000002
 #define CR_INVALID_POINTER                0x00000003
 #define CR_INVALID_FLAG                   0x00000004
 #define CR_INVALID_DEVNODE                0x00000005
-#define CR_INVALID_DEVINST          			CR_INVALID_DEVNODE
+#define CR_INVALID_DEVINST                CR_INVALID_DEVNODE
 #define CR_INVALID_RES_DES                0x00000006
 #define CR_INVALID_LOG_CONF               0x00000007
 #define CR_INVALID_ARBITRATOR             0x00000008
 #define CR_INVALID_NODELIST               0x00000009
 #define CR_DEVNODE_HAS_REQS               0x0000000A
-#define CR_DEVINST_HAS_REQS         			CR_DEVNODE_HAS_REQS
+#define CR_DEVINST_HAS_REQS               CR_DEVNODE_HAS_REQS
 #define CR_INVALID_RESOURCEID             0x0000000B
 #define CR_DLVXD_NOT_FOUND                0x0000000C
 #define CR_NO_SUCH_DEVNODE                0x0000000D
-#define CR_NO_SUCH_DEVINST          			CR_NO_SUCH_DEVNODE
+#define CR_NO_SUCH_DEVINST                CR_NO_SUCH_DEVNODE
 #define CR_NO_MORE_LOG_CONF               0x0000000E
 #define CR_NO_MORE_RES_DES                0x0000000F
 #define CR_ALREADY_SUCH_DEVNODE           0x00000010
-#define CR_ALREADY_SUCH_DEVINST     			CR_ALREADY_SUCH_DEVNODE
+#define CR_ALREADY_SUCH_DEVINST           CR_ALREADY_SUCH_DEVNODE
 #define CR_INVALID_RANGE_LIST             0x00000011
 #define CR_INVALID_RANGE                  0x00000012
 #define CR_FAILURE                        0x00000013
@@ -622,7 +640,7 @@ def get_device_interface_detail_data(dev_list, p_interface_data, buf=None):
     detail = cast(buf, PSP_DEVICE_INTERFACE_DETAIL_DATA)
     # See http://stackoverflow.com/questions/10728644/properly-declare-sp-device-interface-detail-data-for-pinvoke
     # for why cbSize needs to be hardcoded below
-    detail.contents.cbSize = 8 if is64bit else 6
+    detail.contents.cbSize = 8
     required_size = DWORD(0)
     devinfo = SP_DEVINFO_DATA()
     devinfo.cbSize = sizeof(devinfo)
@@ -632,7 +650,7 @@ def get_device_interface_detail_data(dev_list, p_interface_data, buf=None):
             if err == ERROR_INSUFFICIENT_BUFFER:
                 buf = create_string_buffer(required_size.value + 50)
                 detail = cast(buf, PSP_DEVICE_INTERFACE_DETAIL_DATA)
-                detail.contents.cbSize = 8 if is64bit else 6
+                detail.contents.cbSize = 8
                 continue
             raise WinError(err)
         break

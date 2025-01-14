@@ -172,8 +172,8 @@ application/simple-filter+xml
 application/simple-message-summary
 application/simplesymbolcontainer
 application/slate
-application/smil				smi smil
-application/smil+xml				smi smil
+# application/smil				obsoleted by smil+xml
+application/smil+xml				smil smi sml
 application/soap+fastinfoset
 application/soap+xml
 application/sparql-query				rq
@@ -1371,6 +1371,7 @@ application/x-topaz-ebook                  tpz azw1
 application/x-mobipocket-subscription      pobi
 application/x-kindle-application           azw2
 application/x-mobi8-ebook                  azw3
+application/x-mobi10-ebook                 kfx
 application/x-cbz                          cbz
 application/x-cbr                          cbr
 application/x-cb7                          cb7
@@ -1378,10 +1379,10 @@ application/x-cbc                          cbc
 application/x-koboreader-ebook             kobo
 image/wmf                                  wmf
 application/ereader                        pdb
-# See http://idpf.org/epub/30/spec/epub30-publications.html#sec-core-media-types
-application/vnd.ms-opentype                otf
-application/font-woff                      woff
-application/x-font-truetype                ttf
+font/otf                                   otf
+font/woff                                  woff
+font/woff2                                 woff2
+font/ttf                                   ttf
 text/xml                                   plist
 text/x-markdown                            md markdown
 application/x-ibooks+zip                   ibook ibooks

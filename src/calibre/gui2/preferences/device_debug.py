@@ -6,8 +6,7 @@ __copyright__ = '2009, Kovid Goyal <kovid@kovidgoyal.net>'
 __docformat__ = 'restructuredtext en'
 
 
-from qt.core import QDialog, QVBoxLayout, QPlainTextEdit, QTimer, \
-    QDialogButtonBox, QPushButton, QApplication, QIcon
+from qt.core import QApplication, QDialog, QDialogButtonBox, QIcon, QPlainTextEdit, QPushButton, QTimer, QVBoxLayout
 
 from calibre.gui2 import error_dialog
 
@@ -25,7 +24,7 @@ class DebugDevice(QDialog):
         self.copy = QPushButton(_('Copy to &clipboard'))
         self.copy.setDefault(True)
         self.setWindowTitle(_('Debug device detection'))
-        self.setWindowIcon(QIcon(I('debug.png')))
+        self.setWindowIcon(QIcon.ic('debug.png'))
         self.copy.clicked.connect(self.copy_to_clipboard)
         self.ok = QPushButton('&OK')
         self.ok.setAutoDefault(False)

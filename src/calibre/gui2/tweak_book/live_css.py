@@ -5,17 +5,33 @@ __license__ = 'GPL v3'
 __copyright__ = '2014, Kovid Goyal <kovid at kovidgoyal.net>'
 
 import sys
+
+from css_selectors import SelectorError, parse
 from qt.core import (
-    QWidget, QTimer, QStackedLayout, QLabel, QScrollArea, QVBoxLayout,
-    QPainter, Qt, QPalette, QRect, QSize, QSizePolicy, pyqtSignal,
-    QColor, QMenu, QApplication, QIcon, QUrl)
+    QApplication,
+    QColor,
+    QIcon,
+    QLabel,
+    QMenu,
+    QPainter,
+    QPalette,
+    QRect,
+    QScrollArea,
+    QSize,
+    QSizePolicy,
+    QStackedLayout,
+    Qt,
+    QTimer,
+    QUrl,
+    QVBoxLayout,
+    QWidget,
+    pyqtSignal,
+)
 
 from calibre.constants import FAKE_HOST, FAKE_PROTOCOL
-from calibre.gui2.tweak_book import editors, actions, tprefs
-from calibre.gui2.tweak_book.editor.themes import get_theme, theme_color
+from calibre.gui2.tweak_book import actions, editors, tprefs
 from calibre.gui2.tweak_book.editor.text import default_font_family
-from css_selectors import parse, SelectorError
-
+from calibre.gui2.tweak_book.editor.themes import get_theme, theme_color
 
 lowest_specificity = (-sys.maxsize, 0, 0, 0, 0, 0)
 
@@ -142,7 +158,8 @@ class Declaration(QWidget):
 
     def do_layout(self):
         fm = self.fontMetrics()
-        bounding_rect = lambda text: fm.boundingRect(0, 0, 10000, 10000, Cell.FLAGS, text)
+        def bounding_rect(text):
+            return fm.boundingRect(0, 0, 10000, 10000, Cell.FLAGS, text)
         line_spacing = 2
         side_margin = Cell.SIDE_MARGIN
         self.rows = []
@@ -192,6 +209,12 @@ class Declaration(QWidget):
         p.setPen(palette.color(QPalette.ColorRole.WindowText))
         if not self.is_first:
             p.drawLine(0, 0, self.width(), 0)
+        parent = self
+        while parent is not None:
+            parent = parent.parent()
+            if isinstance(parent, LiveCSS):
+                palette = parent.palette()
+                break
         try:
             for row in self.rows:
                 for cell in row:
@@ -352,12 +375,12 @@ class Box(QWidget):
         block = '\n'.join(lines).replace('\xa0', ' ')
         heading = lines[0]
         m = QMenu(self)
-        m.addAction(QIcon(I('edit-copy.png')), _('Copy') + ' ' + heading.replace('\xa0', ' '), lambda : QApplication.instance().clipboard().setText(block))
+        m.addAction(QIcon.ic('edit-copy.png'), _('Copy') + ' ' + heading.replace('\xa0', ' '), lambda : QApplication.instance().clipboard().setText(block))
         all_lines = []
         for w in self.widgets:
             all_lines += w.lines_for_copy
         all_text = '\n'.join(all_lines).replace('\xa0', ' ')
-        m.addAction(QIcon(I('edit-copy.png')), _('Copy everything'), lambda : QApplication.instance().clipboard().setText(all_text))
+        m.addAction(QIcon.ic('edit-copy.png'), _('Copy everything'), lambda : QApplication.instance().clipboard().setText(all_text))
         m.exec(ev.globalPos())
 
 

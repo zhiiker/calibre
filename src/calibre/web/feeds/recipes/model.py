@@ -4,20 +4,26 @@
 import copy
 import zipfile
 from functools import total_ordering
-from qt.core import (
-    QAbstractItemModel, QApplication, QFont, QIcon, QModelIndex, QPalette, QPixmap,
-    Qt, pyqtSignal
-)
+
+from qt.core import QAbstractItemModel, QApplication, QFont, QIcon, QModelIndex, QPalette, QPixmap, Qt, pyqtSignal
 
 from calibre import force_unicode
 from calibre.utils.icu import primary_sort_key
-from calibre.utils.localization import get_language
+from calibre.utils.localization import _, countrycode_to_name, get_language
+from calibre.utils.resources import get_path as P
 from calibre.utils.search_query_parser import ParseException, SearchQueryParser
 from calibre.web.feeds.recipes.collection import (
-    SchedulerConfig, add_custom_recipe, add_custom_recipes, download_builtin_recipe,
-    get_builtin_recipe, get_builtin_recipe_collection, get_custom_recipe,
-    get_custom_recipe_collection, remove_custom_recipe, update_custom_recipe,
-    update_custom_recipes
+    SchedulerConfig,
+    add_custom_recipe,
+    add_custom_recipes,
+    download_builtin_recipe,
+    get_builtin_recipe,
+    get_builtin_recipe_collection,
+    get_custom_recipe,
+    get_custom_recipe_collection,
+    remove_custom_recipe,
+    update_custom_recipe,
+    update_custom_recipes,
 )
 from polyglot.builtins import iteritems
 
@@ -59,18 +65,28 @@ class NewsTreeItem:
                 child.parent = None
 
 
+def parse_lang_code(x: str) -> str:
+    lang, sep, country = x.partition('_')
+    country = country.upper()
+    ans = get_language(lang)
+    if country:
+        ans = _('{language} ({country})').format(language=ans, country=countrycode_to_name(country))
+    return ans
+
+
 @total_ordering
 class NewsCategory(NewsTreeItem):
 
     def __init__(self, category, builtin, custom, scheduler_config, parent):
         NewsTreeItem.__init__(self, builtin, custom, scheduler_config, parent)
-        self.category = category
-        self.cdata = get_language(self.category)
+        self.category = self.cdata = category
+        self.cdata = self.category
         if self.category == _('Scheduled'):
             self.sortq = 0, ''
         elif self.category == _('Custom'):
             self.sortq = 1, ''
         else:
+            self.cdata = parse_lang_code(self.cdata)
             self.sortq = 2, self.cdata
         self.bold_font = QFont()
         self.bold_font.setBold(True)
@@ -155,8 +171,8 @@ class RecipeModel(QAbstractItemModel, AdaptSQP):
     def __init__(self, *args):
         QAbstractItemModel.__init__(self, *args)
         SearchQueryParser.__init__(self, locations=['all'])
-        self.default_icon = (QIcon(I('news.png')))
-        self.custom_icon = (QIcon(I('user_profile.png')))
+        self.default_icon = (QIcon.ic('news.png'))
+        self.custom_icon = (QIcon.ic('user_profile.png'))
         self.builtin_recipe_collection = get_builtin_recipe_collection()
         self.scheduler_config = SchedulerConfig()
         try:
@@ -293,6 +309,9 @@ class RecipeModel(QAbstractItemModel, AdaptSQP):
     def get_customize_info(self, urn):
         return self.scheduler_config.get_customize_info(urn)
 
+    def get_recipe_specific_option_metadata(self, urn):
+        return self.scheduler_config.get_recipe_specific_option_metadata(urn)
+
     def get_matches(self, location, query):
         query = query.strip().lower()
         if not query:
@@ -408,9 +427,8 @@ class RecipeModel(QAbstractItemModel, AdaptSQP):
         self.scheduler_config.schedule_recipe(self.recipe_from_urn(urn),
                 sched_type, schedule)
 
-    def customize_recipe(self, urn, add_title_tag, custom_tags, keep_issues):
-        self.scheduler_config.customize_recipe(urn, add_title_tag,
-                custom_tags, keep_issues)
+    def customize_recipe(self, urn, val):
+        self.scheduler_config.customize_recipe(urn, val)
 
     def get_to_be_downloaded_recipes(self):
         ans = self.scheduler_config.get_to_be_downloaded_recipes()

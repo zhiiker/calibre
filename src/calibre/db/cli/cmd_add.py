@@ -8,10 +8,7 @@ from contextlib import contextmanager
 from optparse import OptionGroup, OptionValueError
 
 from calibre import prints
-from calibre.db.adding import (
-    cdb_find_in_dir, cdb_recursive_find, compile_rule, create_format_map,
-    run_import_plugins, run_import_plugins_before_metadata
-)
+from calibre.db.adding import cdb_find_in_dir, cdb_recursive_find, compile_rule, create_format_map, run_import_plugins, run_import_plugins_before_metadata
 from calibre.db.utils import find_identical_books
 from calibre.ebooks.metadata import MetaInformation, string_to_authors
 from calibre.ebooks.metadata.book.serialize import read_cover, serialize_cover
@@ -113,7 +110,7 @@ def book(db, notify_changes, is_remote, args):
     data, fname, fmt, add_duplicates, otitle, oauthors, oisbn, otags, oseries, oseries_index, ocover, oidentifiers, olanguages, oautomerge, request_id = args
     with add_ctx(), TemporaryDirectory('add-single') as tdir, run_import_plugins_before_metadata(tdir):
         if is_remote:
-            with lopen(os.path.join(tdir, fname), 'wb') as f:
+            with open(os.path.join(tdir, fname), 'wb') as f:
                 f.write(data[1])
             path = f.name
         else:
@@ -121,7 +118,7 @@ def book(db, notify_changes, is_remote, args):
         path = run_import_plugins([path])[0]
         fmt = os.path.splitext(path)[1]
         fmt = (fmt[1:] if fmt else None) or 'unknown'
-        with lopen(path, 'rb') as stream:
+        with open(path, 'rb') as stream:
             mi = get_metadata(stream, stream_type=fmt, use_libprs_metadata=True)
         if not mi.title:
             mi.title = os.path.splitext(os.path.basename(path))[0]
@@ -157,7 +154,7 @@ def format_group(db, notify_changes, is_remote, args):
         if is_remote:
             paths = []
             for name, data in formats:
-                with lopen(os.path.join(tdir, os.path.basename(name)), 'wb') as f:
+                with open(os.path.join(tdir, os.path.basename(name.replace('\\', os.sep))), 'wb') as f:
                     f.write(data)
                 paths.append(f.name)
         else:
@@ -254,13 +251,13 @@ def do_add(
                 cover_data = None
                 for fmt in formats:
                     if fmt.lower().endswith('.opf'):
-                        with lopen(fmt, 'rb') as f:
+                        with open(fmt, 'rb') as f:
                             mi = get_metadata(f, stream_type='opf')
                             if mi.cover_data and mi.cover_data[1]:
                                 cover_data = mi.cover_data[1]
                             elif mi.cover:
                                 try:
-                                    with lopen(mi.cover, 'rb') as f:
+                                    with open(mi.cover, 'rb') as f:
                                         cover_data = f.read()
                                 except OSError:
                                     pass

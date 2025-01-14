@@ -6,9 +6,9 @@ __copyright__ = '2009, Kovid Goyal <kovid@kovidgoyal.net>'
 __docformat__ = 'restructuredtext en'
 
 
-from calibre.gui2.convert.mobi_output_ui import Ui_Form
-from calibre.gui2.convert import Widget
 from calibre.ebooks.conversion.config import OPTIONS
+from calibre.gui2.convert import Widget
+from calibre.gui2.convert.mobi_output_ui import Ui_Form
 
 font_family_model = None
 
@@ -18,7 +18,7 @@ class PluginWidget(Widget, Ui_Form):
     TITLE = _('MOBI output')
     HELP = _('Options specific to')+' MOBI '+_('output')
     COMMIT_NAME = 'mobi_output'
-    ICON = I('mimetypes/mobi.png')
+    ICON = 'mimetypes/mobi.png'
 
     def __init__(self, parent, get_option, get_help, db=None, book_id=None):
         Widget.__init__(self, parent, OPTIONS['output']['mobi'])

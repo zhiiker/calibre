@@ -10,9 +10,10 @@
 #                                                                       #
 #                                                                       #
 #########################################################################
-import sys, os
+import os
+import sys
 
-from calibre.ebooks.rtf2xml import copy, border_parse
+from calibre.ebooks.rtf2xml import border_parse, copy
 from calibre.ptempfile import better_mktemp
 
 from . import open_for_read, open_for_write
@@ -116,8 +117,6 @@ if another paragraph_def is found, the state changes to collect_tokens.
         'sect-note_'    : 'endnotes-in-section',
         # list=> ls
         'list-text_'    : 'list-text',
-        # this line must be wrong because it duplicates an earlier one
-        'list-text_'    : 'list-text',
         'list______'    : 'list',
         'list-lev-d'    : 'list-level-definition',
         'list-cardi'    : 'list-cardinal-numbering',
@@ -130,7 +129,7 @@ if another paragraph_def is found, the state changes to collect_tokens.
         'list-simpi'    : 'list-simple',
         'list-conti'    : 'list-continue',
         'list-hang_'    : 'list-hang',
-        # 'list-tebef'    :	'list-text-before',
+        # 'list-tebef'    : 'list-text-before',
         # 'list-level'    : 'level',
         'list-id___'    : 'list-id',
         'list-start'    : 'list-start',

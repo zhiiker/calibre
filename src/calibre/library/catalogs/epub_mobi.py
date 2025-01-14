@@ -5,16 +5,18 @@ __license__ = 'GPL v3'
 __copyright__ = '2012, Kovid Goyal <kovid@kovidgoyal.net>'
 __docformat__ = 'restructuredtext en'
 
-import datetime, os, time
+import datetime
+import os
+import time
 from collections import namedtuple
 
 from calibre import strftime
 from calibre.customize import CatalogPlugin
-from calibre.customize.conversion import OptionRecommendation, DummyReporter
+from calibre.customize.conversion import DummyReporter, OptionRecommendation
 from calibre.library import current_library_name
 from calibre.library.catalogs import AuthorSortMismatchException, EmptyCatalogException
 from calibre.ptempfile import PersistentTemporaryFile
-from calibre.utils.localization import calibre_langcode_to_name, canonicalize_lang, get_lang
+from calibre.utils.localization import _, calibre_langcode_to_name, canonicalize_lang, get_lang
 
 Option = namedtuple('Option', 'option, default, dest, action, help')
 
@@ -190,16 +192,16 @@ class EPUB_MOBI(CatalogPlugin):
 
     def run(self, path_to_output, opts, db, notification=DummyReporter()):
         from calibre.library.catalogs.epub_mobi_builder import CatalogBuilder
-        from calibre.utils.logging import default_log as log
         from calibre.utils.config import JSONConfig
+        from calibre.utils.logging import default_log as log
 
         # If preset specified from the cli, insert stored options from JSON file
         if hasattr(opts, 'preset') and opts.preset:
             available_presets = JSONConfig("catalog_presets")
             if opts.preset not in available_presets:
                 if available_presets:
-                    print(_('Error: Preset "%s" not found.' % opts.preset))
-                    print(_('Stored presets: %s' % ', '.join([p for p in sorted(available_presets.keys())])))
+                    print(_('Error: Preset "{}" not found.').format(opts.preset))
+                    print(_('Stored presets: {}').format(', '.join([p for p in sorted(available_presets.keys())])))
                 else:
                     print(_('Error: No stored presets.'))
                 return 1

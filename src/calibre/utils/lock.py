@@ -9,14 +9,13 @@ import tempfile
 import time
 from functools import partial
 
-from calibre.constants import (
-    __appname__, filesystem_encoding, islinux, ismacos, iswindows
-)
-from calibre_extensions import speedup
+from calibre.constants import __appname__, filesystem_encoding, islinux, ismacos, iswindows
 from calibre.utils.monotonic import monotonic
+from calibre_extensions import speedup
 
 if iswindows:
     import msvcrt
+
     from calibre.constants import get_windows_username
     from calibre_extensions import winutil
     excl_file_mode = stat.S_IREAD | stat.S_IWRITE
@@ -87,10 +86,14 @@ def lock_file(path, timeout=15, sleep_time=0.2):
             timeout, sleep_time, windows_open, windows_retry, path
         )
     f = unix_open(path)
-    retry_for_a_time(
-        timeout, sleep_time, fcntl.flock, unix_retry,
-        f.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB
-    )
+    try:
+        retry_for_a_time(
+            timeout, sleep_time, fcntl.flock, unix_retry,
+            f.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB
+        )
+    except Exception:
+        f.close()
+        raise
     return f
 
 
@@ -137,6 +140,7 @@ elif islinux:
 
     def create_single_instance_mutex(name, per_user=True):
         import socket
+
         from calibre.utils.ipc import eintr_retry_call
         name = '{}-singleinstance-{}-{}'.format(
             __appname__, (os.geteuid() if per_user else ''), name
@@ -176,7 +180,7 @@ else:
     def create_single_instance_mutex(name, per_user=True):
         from calibre.utils.ipc import eintr_retry_call
         path = singleinstance_path(name, per_user)
-        f = lopen(path, 'w')
+        f = open(path, 'w')
         try:
             eintr_retry_call(fcntl.lockf, f.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
             return partial(_clean_lock_file, f)
@@ -203,7 +207,7 @@ class SingleInstance:
 
 
 def singleinstance(name):
-    ' Ensure that only a single process holding exists with the specified mutex key '
+    ' Ensure that only a single process exists with the specified mutex key '
     release_mutex = create_single_instance_mutex(name)
     if release_mutex is None:
         return False

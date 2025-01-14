@@ -5,20 +5,29 @@ __license__   = 'GPL v3'
 __copyright__ = '2012, Kovid Goyal <kovid at kovidgoyal.net>'
 __docformat__ = 'restructuredtext en'
 
-import json, traceback, posixpath, importlib, os
+import importlib
+import json
+import os
+import posixpath
+import sys
+import traceback
 from io import BytesIO
+from typing import Sequence
 
 from calibre import prints
 from calibre.constants import iswindows, numeric_version
 from calibre.devices.errors import PathError
 from calibre.devices.mtp.base import debug
 from calibre.devices.mtp.defaults import DeviceDefaults
-from calibre.ptempfile import SpooledTemporaryFile, PersistentTemporaryDirectory
+from calibre.devices.mtp.filesystem_cache import FileOrFolder
+from calibre.ptempfile import PersistentTemporaryDirectory, SpooledTemporaryFile
 from calibre.utils.filenames import shorten_components_to
-from polyglot.builtins import iteritems, itervalues, as_bytes
+from calibre.utils.icu import lower as icu_lower
+from polyglot.builtins import as_bytes, iteritems, itervalues
 
 BASE = importlib.import_module('calibre.devices.mtp.%s.driver'%(
     'windows' if iswindows else 'unix')).MTP_DEVICE
+DEFAULT_THUMBNAIL_HEIGHT = 320
 
 
 class MTPInvalidSendPathError(PathError):
@@ -35,8 +44,7 @@ class MTP_DEVICE(BASE):
     CAN_SET_METADATA = []
     NEWS_IN_FOLDER = True
     MAX_PATH_LEN = 230
-    THUMBNAIL_HEIGHT = 160
-    THUMBNAIL_WIDTH = 120
+    THUMBNAIL_HEIGHT = DEFAULT_THUMBNAIL_HEIGHT
     CAN_SET_METADATA = []
     BACKLOADING_ERROR_MESSAGE = None
     MANAGES_DEVICE_PRESENCE = True
@@ -51,6 +59,7 @@ class MTP_DEVICE(BASE):
         self._prefs = None
         self.device_defaults = DeviceDefaults()
         self.current_device_defaults = {}
+        self.current_vid = self.current_pid = -1
         self.calibre_file_paths = {'metadata':self.METADATA_CACHE, 'driveinfo':self.DRIVEINFO}
         self.highlight_ignored_folders = False
 
@@ -63,7 +72,7 @@ class MTP_DEVICE(BASE):
             p.defaults['send_to'] = [
                 'Calibre_Companion', 'Books', 'eBooks/import', 'eBooks',
                 'wordplayer/calibretransfer', 'sdcard/ebooks',
-                'Android/data/com.amazon.kindle/files', 'kindle', 'NOOK'
+                'Android/data/com.amazon.kindle/files', 'kindle', 'NOOK', 'Documents',
             ]
             p.defaults['send_template'] = '{title} - {authors}'
             p.defaults['blacklist'] = []
@@ -72,6 +81,10 @@ class MTP_DEVICE(BASE):
             p.defaults['ignored_folders'] = {}
 
         return self._prefs
+
+    @property
+    def is_kindle(self) -> bool:
+        return self.current_vid == 0x1949
 
     def is_folder_ignored(self, storage_or_storage_id, path,
                           ignored_folders=None):
@@ -83,14 +96,22 @@ class MTP_DEVICE(BASE):
         if storage_id in ignored_folders:
             # Use the users ignored folders settings
             return '/'.join(lpath) in {icu_lower(x) for x in ignored_folders[storage_id]}
+        if self.is_kindle and lpath and lpath[-1].endswith('.sdr'):
+            return True
 
         # Implement the default ignore policy
 
         # Top level ignores
         if lpath[0] in {
             'alarms', 'dcim', 'movies', 'music', 'notifications',
-            'pictures', 'ringtones', 'samsung', 'sony', 'htc', 'bluetooth',
+            'pictures', 'ringtones', 'samsung', 'sony', 'htc', 'bluetooth', 'fonts',
             'games', 'lost.dir', 'video', 'whatsapp', 'image', 'com.zinio.mobile.android.reader'}:
+            return True
+        if lpath[0].startswith('.') and lpath[0] != '.tolino':
+            # apparently the Tolino for some reason uses a hidden folder for its library, sigh.
+            return True
+        if lpath[0] == 'system' and not self.is_kindle:
+            # on Kindles we need the system folder for the amazon cover bug workaround
             return True
 
         if len(lpath) > 1 and lpath[0] == 'android':
@@ -131,9 +152,36 @@ class MTP_DEVICE(BASE):
                     isoformat(utcnow()))
             self.prefs['history'] = h
 
-        self.current_device_defaults = self.device_defaults(device, self)
+        self.current_device_defaults, self.current_vid, self.current_pid = self.device_defaults(device, self)
         self.calibre_file_paths = self.current_device_defaults.get(
             'calibre_file_paths', {'metadata':self.METADATA_CACHE, 'driveinfo':self.DRIVEINFO})
+        self.THUMBNAIL_HEIGHT = DEFAULT_THUMBNAIL_HEIGHT
+        if self.is_kindle:
+            self.THUMBNAIL_HEIGHT = 500  # see kindle/driver.py
+            try:
+                self.sync_kindle_thumbnails()
+            except Exception:
+                import traceback
+                traceback.print_exc()
+
+    def list(self, path, recurse=False):
+        if path.startswith('/'):
+            q = self._main_id
+            path = path[1:]
+        elif path.startswith('card:/'):
+            q = self._carda_id
+            path = path[6:]
+        for storage in self.filesystem_cache.entries:
+            if storage.storage_id == q:
+                if path:
+                    path = path.replace(os.sep, '/')
+                    parts = path.split('/')
+                    if parts:
+                        storage = storage.find_path(parts)
+                        if storage is None:
+                            return []
+                return list(storage.list(recurse))
+        return []
 
     def get_device_uid(self):
         return self.current_serial_num
@@ -153,9 +201,10 @@ class MTP_DEVICE(BASE):
 
     # Device information {{{
     def _update_drive_info(self, storage, location_code, name=None):
-        from calibre.utils.date import isoformat, now
-        from calibre.utils.config import from_json, to_json
         import uuid
+
+        from calibre.utils.config import from_json, to_json
+        from calibre.utils.date import isoformat, now
         f = storage.find_path(self.calibre_file_paths['driveinfo'].split('/'))
         dinfo = {}
         if f is not None:
@@ -174,7 +223,7 @@ class MTP_DEVICE(BASE):
             dinfo['device_name'] = name
         dinfo['location_code'] = location_code
         dinfo['last_library_uuid'] = getattr(self, 'current_library_uuid', None)
-        dinfo['calibre_version'] = '.'.join([str(i) for i in numeric_version])
+        dinfo['calibre_version'] = '.'.join(str(i) for i in numeric_version)
         dinfo['date_last_connected'] = isoformat(now())
         dinfo['mtp_prefix'] = storage.storage_prefix
         raw = as_bytes(json.dumps(dinfo, default=to_json))
@@ -213,8 +262,7 @@ class MTP_DEVICE(BASE):
         self.report_progress(0, msg)
 
     def books(self, oncard=None, end_session=True):
-        from calibre.devices.mtp.books import JSONCodec
-        from calibre.devices.mtp.books import BookList, Book
+        from calibre.devices.mtp.books import Book, BookList, JSONCodec
         self.report_progress(0, _('Listing files, this can take a while'))
         self.get_driveinfo()  # Ensure driveinfo is loaded
         sid = {'carda':self._carda_id, 'cardb':self._cardb_id}.get(oncard,
@@ -288,8 +336,8 @@ class MTP_DEVICE(BASE):
         return bl
 
     def read_file_metadata(self, mtp_file):
-        from calibre.ebooks.metadata.meta import get_metadata
         from calibre.customize.ui import quick_metadata
+        from calibre.ebooks.metadata.meta import get_metadata
         ext = mtp_file.name.rpartition('.')[-1].lower()
         stream = self.get_mtp_file(mtp_file)
         with quick_metadata:
@@ -344,7 +392,7 @@ class MTP_DEVICE(BASE):
             if iswindows:
                 plen = len(base)
                 name = ''.join(shorten_components_to(245-plen, [name]))
-            with lopen(os.path.join(base, name), 'wb') as out:
+            with open(os.path.join(base, name), 'wb') as out:
                 try:
                     self.get_mtp_file(f, out)
                 except Exception as e:
@@ -435,10 +483,16 @@ class MTP_DEVICE(BASE):
                 close = False
             else:
                 sz = os.path.getsize(infile)
-                stream = lopen(infile, 'rb')
+                stream = open(infile, 'rb')
                 close = True
+            relpath = parent.mtp_relpath + (path[-1].lower(),)
             try:
                 mtp_file = self.put_file(parent, path[-1], stream, sz)
+                try:
+                    self.upload_cover(parent, relpath, storage, mi, stream)
+                except Exception:
+                    import traceback
+                    traceback.print_exc()
             finally:
                 if close:
                     stream.close()
@@ -449,6 +503,80 @@ class MTP_DEVICE(BASE):
         self.report_progress(1, _('Transfer to device finished...'))
         debug('upload_books() ended')
         return ans
+
+    def upload_cover(self, parent_folder: FileOrFolder, relpath_of_ebook_on_device: Sequence[str], storage: FileOrFolder, mi, ebook_file_as_stream):
+        if self.is_kindle:
+            self.upload_kindle_thumbnail(parent_folder, relpath_of_ebook_on_device, storage, mi, ebook_file_as_stream)
+
+    # Kindle cover thumbnail handling {{{
+
+    def upload_kindle_thumbnail(self, parent_folder: FileOrFolder, relpath_of_ebook_on_device: Sequence[str], storage: FileOrFolder, mi, ebook_file_as_stream):
+        coverdata = getattr(mi, 'thumbnail', None)
+        if not coverdata or not coverdata[2]:
+            return
+        from calibre.devices.kindle.driver import thumbnail_filename
+        tfname = thumbnail_filename(ebook_file_as_stream)
+        if not tfname:
+            return
+        thumbpath = 'system', 'thumbnails', tfname
+        cover_stream = BytesIO(coverdata[2])
+        sz = len(coverdata[2])
+        try:
+            parent = self.ensure_parent(storage, thumbpath)
+        except Exception as err:
+            print(f'Failed to upload cover thumbnail to system/thumbnails with error: {err}', file=sys.stderr)
+            return
+        self.put_file(parent, tfname, cover_stream, sz)
+        cover_stream.seek(0)
+        cache_path = 'amazon-cover-bug', tfname
+        parent = self.ensure_parent(storage, cache_path)
+        self.put_file(parent, tfname, cover_stream, sz)
+        # mapping from ebook relpath to thumbnail filename
+        from hashlib import sha1
+        index_name = sha1('/'.join(relpath_of_ebook_on_device).encode()).hexdigest()
+        data = tfname.encode()
+        self.put_file(parent, index_name, BytesIO(data), len(data))
+
+    def delete_kindle_cover_thumbnail_for(self, storage: FileOrFolder, mtp_relpath: Sequence[str]) -> None:
+        from hashlib import sha1
+        index_name = sha1('/'.join(mtp_relpath).encode()).hexdigest()
+        index = storage.find_path(('amazon-cover-bug', index_name))
+        if index is not None:
+            data = BytesIO()
+            self.get_mtp_file(index, data)
+            tfname = data.getvalue().decode().strip()
+            if tfname:
+                thumbnail = storage.find_path(('system', 'thumbnails', tfname))
+                if thumbnail is not None:
+                    self.delete_file_or_folder(thumbnail)
+                cache = storage.find_path(('amazon-cover-bug', tfname))
+                if cache is not None:
+                    self.delete_file_or_folder(cache)
+                self.delete_file_or_folder(index)
+
+    def sync_kindle_thumbnails(self):
+        for storage in self.filesystem_cache.entries:
+            self._sync_kindle_thumbnails(storage)
+
+    def _sync_kindle_thumbnails(self, storage):
+        system_thumbnails_dir = storage.find_path(('system', 'thumbnails'))
+        amazon_cover_bug_cache_dir = storage.find_path(('amazon-cover-bug',))
+        if system_thumbnails_dir is None or amazon_cover_bug_cache_dir is None:
+            return
+        debug('Syncing cover thumbnails to workaround amazon cover bug')
+        system_thumbnails = {x.name: x for x in system_thumbnails_dir.files}
+        count = 0
+        for f in amazon_cover_bug_cache_dir.files:
+            s = system_thumbnails.get(f.name)
+            if s is not None and s.size != f.size:
+                count += 1
+                data = BytesIO()
+                self.get_mtp_file(f, data)
+                data.seek(0)
+                sz = len(data.getvalue())
+                self.put_file(system_thumbnails_dir, f.name, data, sz)
+        debug(f'Restored {count} cover thumbnails that were destroyed by Amazon')
+    # }}}
 
     def add_books_to_metadata(self, mtp_files, metadata, booklists):
         debug('add_books_to_metadata() called')
@@ -489,7 +617,11 @@ class MTP_DEVICE(BASE):
 
         for i, path in enumerate(paths):
             f = self.filesystem_cache.resolve_mtp_id_path(path)
+            fpath = f.mtp_relpath
+            storage = f.storage
             self.recursive_delete(f)
+            if self.is_kindle:
+                self.delete_kindle_cover_thumbnail_for(storage, fpath)
             self.report_progress((i+1) / float(len(paths)),
                     _('Deleted %s')%path)
         self.report_progress(1, _('All books deleted'))

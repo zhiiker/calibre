@@ -2,11 +2,12 @@
 # License: GPLv3 Copyright: 2016, Kovid Goyal <kovid at kovidgoyal.net>
 
 
-from functools import partial
+import numbers
+import operator
 from collections import OrderedDict
-import operator, numbers
+from functools import partial
 
-from css_parser.css import Property, CSSRule
+from css_parser.css import CSSRule, Property
 
 from calibre import force_unicode
 from calibre.ebooks import parse_css_length
@@ -378,7 +379,7 @@ def test(return_tests=False):  # {{{
         r = Rule(**rule)
         decl = StyleDeclaration(safe_parser().parseStyle(style))
         r.process_declaration(decl)
-        return str(decl)
+        return str(decl).rstrip(';')
 
     class TestTransforms(unittest.TestCase):
         longMessage = True

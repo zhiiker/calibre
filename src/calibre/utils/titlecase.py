@@ -10,7 +10,9 @@ License: http://www.opensource.org/licenses/mit-license.php
 
 import re
 
-from calibre.utils.icu import capitalize, upper
+from calibre.utils.icu import capitalize
+from calibre.utils.icu import lower as icu_lower
+from calibre.utils.icu import upper as icu_upper
 
 __all__ = ['titlecase']
 __version__ = '0.5'
@@ -52,7 +54,7 @@ def titlecase(text):
 
     """
 
-    all_caps = upper(text) == text
+    all_caps = icu_upper(text) == text
 
     pat = re.compile(r'(\s+)')
     line = []

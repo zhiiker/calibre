@@ -7,23 +7,41 @@ from collections import OrderedDict
 from functools import partial
 from operator import attrgetter
 
+from qt.core import (
+    QAbstractItemView,
+    QAbstractListModel,
+    QApplication,
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QFont,
+    QGridLayout,
+    QGroupBox,
+    QIcon,
+    QItemSelectionModel,
+    QLabel,
+    QListView,
+    QMenu,
+    QModelIndex,
+    QPlainTextEdit,
+    QPushButton,
+    QSizePolicy,
+    QSplitter,
+    Qt,
+    QVBoxLayout,
+    QWidget,
+    pyqtSignal,
+)
+
 from calibre import isbytestring, prepare_string_for_xml
 from calibre.gui2 import error_dialog, info_dialog
 from calibre.gui2.preferences import AbortCommit, ConfigWidgetBase, test_widget
 from calibre.gui2.search_box import SearchBox2
 from calibre.gui2.widgets import PythonHighlighter
-from calibre.utils.config_base import (default_tweaks_raw, exec_tweaks,
-                                       normalize_tweak, read_custom_tweaks,
-                                       write_custom_tweaks)
+from calibre.utils.config_base import default_tweaks_raw, exec_tweaks, normalize_tweak, read_custom_tweaks, write_custom_tweaks
 from calibre.utils.icu import lower
 from calibre.utils.search_query_parser import ParseException, SearchQueryParser
 from polyglot.builtins import iteritems
-from qt.core import (QAbstractItemView, QAbstractListModel, QApplication,
-                     QComboBox, QDialog, QDialogButtonBox, QFont, QGridLayout,
-                     QGroupBox, QIcon, QItemSelectionModel, QLabel, QListView,
-                     QMenu, QModelIndex, QPlainTextEdit, QPushButton,
-                     QSizePolicy, QSplitter, Qt, QVBoxLayout, QWidget,
-                     pyqtSignal)
 
 ROOT = QModelIndex()
 
@@ -353,9 +371,9 @@ class TweaksView(QListView):
         QListView.__init__(self, parent)
         self.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
         self.setAlternatingRowColors(True)
-        self.setSpacing(5)
         self.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
         self.setMinimumWidth(300)
+        self.setStyleSheet('QListView::item { padding-top: 0.75ex; padding-bottom: 0.75ex; }')
         self.setWordWrap(True)
 
     def currentChanged(self, cur, prev):
@@ -393,16 +411,16 @@ class ConfigWidget(ConfigWidgetBase):
 
         self.search = sb = SearchBox2(self)
         sb.sizePolicy().setHorizontalStretch(10)
-        sb.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLength)
+        sb.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
         sb.setMinimumContentsLength(10)
         g.setColumnStretch(0, 100)
         g.addWidget(self.search, 0, 0, 1, 1)
         self.next_button = b = QPushButton(self)
-        b.setIcon(QIcon(I("arrow-down.png")))
+        b.setIcon(QIcon.ic("arrow-down.png"))
         b.setText(_("&Next"))
         g.addWidget(self.next_button, 0, 1, 1, 1)
         self.previous_button = b = QPushButton(self)
-        b.setIcon(QIcon(I("arrow-up.png")))
+        b.setIcon(QIcon.ic("arrow-up.png"))
         b.setText(_("&Previous"))
         g.addWidget(self.previous_button, 0, 2, 1, 1)
 
@@ -447,7 +465,7 @@ class ConfigWidget(ConfigWidgetBase):
         self.search.search.connect(self.find)
         self.view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.view.customContextMenuRequested.connect(self.show_context_menu)
-        self.copy_icon = QIcon(I('edit-copy.png'))
+        self.copy_icon = QIcon.ic('edit-copy.png')
 
     def show_context_menu(self, point):
         idx = self.tweaks_view.currentIndex()
@@ -485,11 +503,13 @@ class ConfigWidget(ConfigWidgetBase):
             self.tweaks.set_plugin_tweaks(l)
             self.changed()
 
-    def current_changed(self, current, previous):
-        self.tweaks_view.scrollTo(current)
-        tweak = self.tweaks.data(current, Qt.ItemDataRole.UserRole)
-        self.help.setPlainText(tweak.doc)
-        self.edit_tweak.setPlainText(tweak.edit_text)
+    def current_changed(self, *a):
+        current = self.tweaks_view.currentIndex()
+        if current.isValid():
+            self.tweaks_view.scrollTo(current)
+            tweak = self.tweaks.data(current, Qt.ItemDataRole.UserRole)
+            self.help.setPlainText(tweak.doc)
+            self.edit_tweak.setPlainText(tweak.edit_text)
 
     def changed(self, *args):
         self.changed_signal.emit()
@@ -497,6 +517,7 @@ class ConfigWidget(ConfigWidgetBase):
     def initialize(self):
         self.tweaks = self._model = Tweaks()
         self.tweaks_view.setModel(self.tweaks)
+        self.tweaks_view.setCurrentIndex(self.tweaks_view.model().index(0))
 
     def restore_to_default(self, *args):
         idx = self.tweaks_view.currentIndex()

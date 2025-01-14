@@ -4,13 +4,12 @@ __docformat__ = 'restructuredtext en'
 
 import textwrap
 
-from qt.core import (QWidget, QListWidgetItem, Qt, QLabel,
-        QLineEdit, QCheckBox, QComboBox)
+from qt.core import QCheckBox, QComboBox, QLabel, QLineEdit, QListWidgetItem, Qt, QWidget
 
+from calibre.ebooks import BOOK_EXTENSIONS
 from calibre.gui2 import error_dialog, question_dialog
 from calibre.gui2.device_drivers.configwidget_ui import Ui_ConfigWidget
 from calibre.utils.formatter import validation_formatter
-from calibre.ebooks import BOOK_EXTENSIONS
 
 
 class ConfigWidget(QWidget, Ui_ConfigWidget):
@@ -70,11 +69,15 @@ class ConfigWidget(QWidget, Ui_ConfigWidget):
             if isinstance(extra_customization_message, list):
                 self.opt_extra_customization = []
                 if len(extra_customization_message) > 6:
-                    row_func = lambda x, y: ((x//2) * 2) + y
-                    col_func = lambda x: x%2
+                    def row_func(x, y):
+                        return (x // 2 * 2 + y)
+                    def col_func(x):
+                        return (x % 2)
                 else:
-                    row_func = lambda x, y: x*2 + y
-                    col_func = lambda x: 0
+                    def row_func(x, y):
+                        return (x * 2 + y)
+                    def col_func(x):
+                        return 0
 
                 for i, m in enumerate(extra_customization_message):
                     label_text, tt = parse_msg(m)

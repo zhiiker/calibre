@@ -5,23 +5,25 @@ __license__   = 'GPL v3'
 __copyright__ = '2012, Kovid Goyal <kovid@kovidgoyal.net>'
 __docformat__ = 'restructuredtext en'
 
-import struct, re, os
+import os
+import re
+import struct
 from collections import namedtuple
 from itertools import repeat
 from uuid import uuid4
 
 from lxml import etree
 
-from calibre.ebooks.mobi.reader.headers import NULL_INDEX
-from calibre.ebooks.mobi.reader.index import read_index
-from calibre.ebooks.mobi.reader.ncx import read_ncx, build_toc
-from calibre.ebooks.mobi.reader.markup import expand_mobi8_markup
-from calibre.ebooks.mobi.reader.containers import Container, find_imgtype
 from calibre.ebooks.metadata.opf2 import Guide, OPFCreator
 from calibre.ebooks.metadata.toc import TOC
+from calibre.ebooks.mobi.reader.containers import Container, find_imgtype
+from calibre.ebooks.mobi.reader.headers import NULL_INDEX
+from calibre.ebooks.mobi.reader.index import read_index
+from calibre.ebooks.mobi.reader.markup import expand_mobi8_markup
+from calibre.ebooks.mobi.reader.ncx import build_toc, read_ncx
 from calibre.ebooks.mobi.utils import read_font_record
+from calibre.ebooks.oeb.base import XHTML, XPath, xml2text
 from calibre.ebooks.oeb.parse_utils import parse_html
-from calibre.ebooks.oeb.base import XPath, XHTML, xml2text
 from polyglot.builtins import as_unicode
 from polyglot.urllib import urldefrag
 
@@ -260,13 +262,14 @@ class Mobi8Reader:
                 # svg
                 typ = 'svg'
                 start = m.start()
-                m2 = image_tag_pattern.search(flowpart)
+                # strip off anything before <svg if inlining
+                from_svg = flowpart[start:]
+                m2 = image_tag_pattern.search(from_svg)
                 if m2 is not None:
                     format = 'inline'
                     dir = None
                     fname = None
-                    # strip off anything before <svg if inlining
-                    flowpart = re.sub(br'(</?)svg:', r'\1', flowpart[start:])
+                    flowpart = from_svg
                 else:
                     format = 'file'
                     dir = "images"
@@ -505,9 +508,16 @@ class Mobi8Reader:
                 pass
 
         opf.create_manifest_from_files_in([os.getcwd()], exclude=exclude)
+        mime_map = {
+            'text/html': 'application/xhtml+xml',
+            'font/ttf': 'application/x-font-truetype',
+            'font/otf': 'application/vnd.ms-opentype',
+            'font/woff': 'application/font-woff',
+        }
         for entry in opf.manifest:
-            if entry.mime_type == 'text/html':
-                entry.mime_type = 'application/xhtml+xml'
+            n = mime_map.get(entry.mime_type)
+            if n is not None:
+                entry.mime_type = n
         opf.create_spine(spine)
         opf.set_toc(toc)
         ppd = getattr(self.header.exth, 'page_progression_direction', None)

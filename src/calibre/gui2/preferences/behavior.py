@@ -8,17 +8,17 @@ __docformat__ = 'restructuredtext en'
 import re
 from functools import partial
 
-from qt.core import Qt, QListWidgetItem
+from qt.core import QListWidgetItem, Qt
 
-from calibre.gui2.actions.choose_library import get_change_library_action_plugin
-from calibre.gui2.preferences import ConfigWidgetBase, test_widget, Setting
-from calibre.gui2.preferences.behavior_ui import Ui_Form
-from calibre.gui2 import config, info_dialog, dynamic, gprefs
-from calibre.utils.config import prefs
-from calibre.customize.ui import available_output_formats, all_input_formats
+from calibre.constants import iswindows
+from calibre.customize.ui import all_input_formats, available_output_formats
 from calibre.ebooks import BOOK_EXTENSIONS
 from calibre.ebooks.oeb.iterator import is_supported
-from calibre.constants import iswindows
+from calibre.gui2 import config, dynamic, gprefs, info_dialog
+from calibre.gui2.actions.choose_library import get_change_library_action_plugin
+from calibre.gui2.preferences import ConfigWidgetBase, Setting, test_widget
+from calibre.gui2.preferences.behavior_ui import Ui_Form
+from calibre.utils.config import prefs
 from calibre.utils.icu import sort_key
 
 
@@ -69,6 +69,7 @@ class ConfigWidget(ConfigWidgetBase, Ui_Form):
 
         self.input_up_button.clicked.connect(self.up_input)
         self.input_down_button.clicked.connect(self.down_input)
+        self.opt_input_order.set_movement_functions(self.up_input, self.down_input)
         self.opt_input_order.dropEvent = partial(input_order_drop_event, self)
         for signal in ('Activated', 'Changed', 'DoubleClicked', 'Clicked'):
             signal = getattr(self.opt_internally_viewed_formats, 'item'+signal)

@@ -7,8 +7,8 @@ __docformat__ = 'restructuredtext en'
 
 
 import numbers
-from qt.core import QDialog, QVBoxLayout, QPlainTextEdit, QTimer, \
-    QDialogButtonBox, QPushButton, QApplication, QIcon, QMessageBox
+
+from qt.core import QApplication, QDialog, QDialogButtonBox, QIcon, QMessageBox, QPlainTextEdit, QPushButton, QTimer, QVBoxLayout
 
 
 def step_dialog(parent, title, msg, det_msg=''):
@@ -31,7 +31,7 @@ class UserDefinedDevice(QDialog):
         self.copy = QPushButton(_('Copy to &clipboard'))
         self.copy.setDefault(True)
         self.setWindowTitle(_('User-defined device information'))
-        self.setWindowIcon(QIcon(I('debug.png')))
+        self.setWindowIcon(QIcon.ic('debug.png'))
         self.copy.clicked.connect(self.copy_to_clipboard)
         self.ok = QPushButton('&OK')
         self.ok.setAutoDefault(False)

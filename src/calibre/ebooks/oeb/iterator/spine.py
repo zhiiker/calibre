@@ -5,10 +5,11 @@ __license__   = 'GPL v3'
 __copyright__ = '2012, Kovid Goyal <kovid@kovidgoyal.net>'
 __docformat__ = 'restructuredtext en'
 
-import re, os
+import os
+import re
+from collections import namedtuple
 from functools import partial
 from operator import attrgetter
-from collections import namedtuple
 
 from calibre import guess_type, replace_entities
 from calibre.ebooks.chardet import xml_to_unicode
@@ -50,7 +51,7 @@ class SpineItem(str):
         if not os.path.exists(path) and os.path.exists(ppath):
             path = ppath
         obj = super().__new__(cls, path)
-        with lopen(path, 'rb') as f:
+        with open(path, 'rb') as f:
             raw = f.read()
         if from_epub:
             # According to the spec, HTML in EPUB must be encoded in utf-8 or

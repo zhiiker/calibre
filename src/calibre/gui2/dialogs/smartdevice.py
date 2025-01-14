@@ -3,7 +3,7 @@
 __license__   = 'GPL v3'
 __copyright__ = '2008, Kovid Goyal <kovid at kovidgoyal.net>'
 
-from qt.core import (QDialog, QLineEdit, Qt)
+from qt.core import QDialog, QLineEdit, Qt
 
 from calibre.gui2 import error_dialog
 from calibre.gui2.dialogs.smartdevice_ui import Ui_Dialog
@@ -99,7 +99,7 @@ class SmartdeviceDialog(QDialog, Ui_Dialog):
         self.resize(self.sizeHint())
 
     def use_fixed_port_changed(self, state):
-        self.fixed_port.setEnabled(state == Qt.CheckState.Checked)
+        self.fixed_port.setEnabled(Qt.CheckState(state) == Qt.CheckState.Checked)
 
     def toggle_password(self, state):
         self.password_box.setEchoMode(QLineEdit.EchoMode.Password if state ==

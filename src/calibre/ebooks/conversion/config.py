@@ -5,14 +5,15 @@ __license__   = 'GPL v3'
 __copyright__ = '2009, Kovid Goyal <kovid@kovidgoyal.net>'
 __docformat__ = 'restructuredtext en'
 
-import os, ast, json
+import ast
+import json
+import os
 
-from calibre.utils.config import config_dir, prefs, tweaks
-from calibre.utils.lock import ExclusiveFile
 from calibre import sanitize_file_name
 from calibre.customize.conversion import OptionRecommendation
 from calibre.customize.ui import available_output_formats
-
+from calibre.utils.config import config_dir, prefs, tweaks
+from calibre.utils.lock import ExclusiveFile
 
 config_dir = os.path.join(config_dir, 'conversion')
 
@@ -27,7 +28,7 @@ def save_defaults(name, recs):
 
     os.makedirs(config_dir, exist_ok=True)
 
-    with lopen(path, 'wb'):
+    with open(path, 'wb'):
         pass
     with ExclusiveFile(path) as f:
         f.write(raw)
@@ -220,7 +221,7 @@ OPTIONS = {
 
         'fb2': ('no_inline_fb2_toc',),
 
-        'pdf': ('no_images', 'unwrap_factor'),
+        'pdf': ('no_images', 'unwrap_factor', 'pdf_engine', 'pdf_header_skip', 'pdf_footer_skip', 'pdf_header_regex', 'pdf_footer_regex'),
 
         'rtf': ('ignore_wmf',),
 
@@ -259,7 +260,7 @@ OPTIONS = {
         'structure_detection': (
             'chapter', 'chapter_mark', 'start_reading_at',
             'remove_first_image', 'remove_fake_margins', 'insert_metadata',
-            'page_breaks_before'),
+            'page_breaks_before', 'add_alt_text_to_img',),
 
         'toc': (
             'level1_toc', 'level2_toc', 'level3_toc',
@@ -278,7 +279,7 @@ OPTIONS = {
         'epub': (
             'dont_split_on_page_breaks', 'flow_size', 'no_default_epub_cover',
             'no_svg_cover', 'epub_inline_toc', 'epub_toc_at_end', 'toc_title',
-            'preserve_cover_aspect_ratio', 'epub_flatten', 'epub_version'),
+            'preserve_cover_aspect_ratio', 'epub_flatten', 'epub_version', 'epub_max_image_size',),
 
         'fb2': ('sectionize', 'fb2_genre'),
 
@@ -305,7 +306,7 @@ OPTIONS = {
             'pdf_default_font_size', 'pdf_mono_font_size', 'pdf_page_numbers',
             'pdf_footer_template', 'pdf_header_template', 'pdf_add_toc',
             'toc_title', 'pdf_page_margin_left', 'pdf_page_margin_top',
-            'pdf_page_margin_right', 'pdf_page_margin_bottom',
+            'pdf_page_margin_right', 'pdf_page_margin_bottom', 'pdf_no_cover',
             'pdf_use_document_margins', 'pdf_page_number_map', 'pdf_odd_even_offset'),
 
         'pml': ('inline_toc', 'full_image_depth', 'pml_output_encoding'),

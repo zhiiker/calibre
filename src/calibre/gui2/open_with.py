@@ -8,23 +8,37 @@ import os
 import uuid
 from contextlib import suppress
 from functools import partial
-from qt.core import (
-    QAction, QBuffer, QByteArray, QIcon, QInputDialog, QKeySequence, QLabel,
-    QListWidget, QListWidgetItem, QPixmap, QSize, QStackedLayout, Qt, QVBoxLayout,
-    QWidget, pyqtSignal, QIODevice, QDialogButtonBox
-)
 from threading import Thread
+
+from qt.core import (
+    QAction,
+    QBuffer,
+    QByteArray,
+    QDialogButtonBox,
+    QIcon,
+    QInputDialog,
+    QIODevice,
+    QKeySequence,
+    QLabel,
+    QListWidget,
+    QListWidgetItem,
+    QPixmap,
+    QSize,
+    QStackedLayout,
+    Qt,
+    QVBoxLayout,
+    QWidget,
+    pyqtSignal,
+)
 
 from calibre import as_unicode
 from calibre.constants import ismacos, iswindows
-from calibre.gui2 import (
-    Application, choose_files, choose_images, choose_osx_app, elided_text,
-    error_dialog, sanitize_env_vars
-)
+from calibre.gui2 import Application, choose_files, choose_images, choose_osx_app, elided_text, error_dialog, sanitize_env_vars
 from calibre.gui2.progress_indicator import ProgressIndicator
 from calibre.gui2.widgets2 import Dialog
 from calibre.utils.config import JSONConfig
 from calibre.utils.icu import numeric_sort_key as sort_key
+from calibre.utils.resources import get_image_path as I
 from polyglot.builtins import iteritems, string_or_bytes
 
 ENTRY_ROLE = Qt.ItemDataRole.UserRole
@@ -64,12 +78,12 @@ def entry_to_icon_text(entry, only_text=False):
             from base64 import standard_b64decode
             data = bytearray(standard_b64decode(data))
     if not isinstance(data, (bytearray, bytes)):
-        icon = QIcon(I('blank.png'))
+        icon = QIcon.ic('blank.png')
     else:
         pmap = QPixmap()
         pmap.loadFromData(bytes(data))
         if pmap.isNull():
-            icon = QIcon(I('blank.png'))
+            icon = QIcon.ic('blank.png')
         else:
             icon = QIcon(pmap)
     return icon, entry.get('name', entry.get('Name')) or _('Unknown')
@@ -79,12 +93,8 @@ if iswindows:
     # Windows {{{
     import subprocess
 
-    from calibre.utils.open_with.windows import (
-        load_icon_for_cmdline, load_icon_resource
-    )
-    from calibre.utils.winreg.default_programs import (
-        find_programs, friendly_app_name
-    )
+    from calibre.utils.open_with.windows import load_icon_for_cmdline, load_icon_resource
+    from calibre.utils.winreg.default_programs import find_programs, friendly_app_name
     from calibre_extensions import winutil
     oprefs = JSONConfig('windows_open_with')
 
@@ -175,9 +185,7 @@ if iswindows:
 elif ismacos:
     # macOS {{{
     oprefs = JSONConfig('osx_open_with')
-    from calibre.utils.open_with.osx import (
-        entry_to_cmdline, find_programs, get_bundle_data, get_icon
-    )
+    from calibre.utils.open_with.osx import entry_to_cmdline, find_programs, get_bundle_data, get_icon
 
     def entry_sort_key(entry):
         return sort_key(entry.get('name') or '')
@@ -225,9 +233,7 @@ elif ismacos:
 else:
     # XDG {{{
     oprefs = JSONConfig('xdg_open_with')
-    from calibre.utils.open_with.linux import (
-        entry_sort_key, entry_to_cmdline, find_programs
-    )
+    from calibre.utils.open_with.linux import entry_sort_key, entry_to_cmdline, find_programs
 
     def change_name_in_entry(entry, newname):
         entry['Name'] = newname
@@ -401,11 +407,11 @@ class EditPrograms(Dialog):  # {{{
 
         self.bb.clear(), self.bb.setStandardButtons(QDialogButtonBox.StandardButton.Close)
         self.rb = b = self.bb.addButton(_('&Remove'), QDialogButtonBox.ButtonRole.ActionRole)
-        b.clicked.connect(self.remove), b.setIcon(QIcon(I('list_remove.png')))
+        b.clicked.connect(self.remove), b.setIcon(QIcon.ic('list_remove.png'))
         self.cb = b = self.bb.addButton(_('Change &icon'), QDialogButtonBox.ButtonRole.ActionRole)
-        b.clicked.connect(self.change_icon), b.setIcon(QIcon(I('icon_choose.png')))
+        b.clicked.connect(self.change_icon), b.setIcon(QIcon.ic('icon_choose.png'))
         self.cb = b = self.bb.addButton(_('Change &name'), QDialogButtonBox.ButtonRole.ActionRole)
-        b.clicked.connect(self.change_name), b.setIcon(QIcon(I('modified.png')))
+        b.clicked.connect(self.change_name), b.setIcon(QIcon.ic('modified.png'))
         l.addWidget(self.bb)
 
         self.populate()

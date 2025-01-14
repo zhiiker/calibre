@@ -2,21 +2,31 @@ __license__ = 'GPL 3'
 __copyright__ = '2009, Kovid Goyal <kovid@kovidgoyal.net>'
 __docformat__ = 'restructuredtext en'
 
-import os, re, sys, shutil, pprint, json
+import json
+import os
+import pprint
+import re
+import shutil
+import sys
 from functools import partial
 
-from calibre.customize.conversion import OptionRecommendation, DummyReporter
-from calibre.customize.ui import input_profiles, output_profiles, \
-        plugin_for_input_format, plugin_for_output_format, \
-        available_input_formats, available_output_formats, \
-        run_plugins_on_preprocess, run_plugins_on_postprocess
+from calibre import extract, filesystem_encoding, get_types_map, isbytestring, walk
+from calibre.constants import __version__
+from calibre.customize.conversion import DummyReporter, OptionRecommendation
+from calibre.customize.ui import (
+    available_input_formats,
+    available_output_formats,
+    input_profiles,
+    output_profiles,
+    plugin_for_input_format,
+    plugin_for_output_format,
+    run_plugins_on_postprocess,
+    run_plugins_on_preprocess,
+)
 from calibre.ebooks.conversion.preprocess import HTMLPreProcessor
 from calibre.ptempfile import PersistentTemporaryDirectory
 from calibre.utils.date import parse_date
 from calibre.utils.zipfile import ZipFile
-from calibre import (extract, walk, isbytestring, filesystem_encoding,
-        get_types_map)
-from calibre.constants import __version__
 from polyglot.builtins import string_or_bytes
 
 DEBUG_README=b'''
@@ -140,7 +150,7 @@ OptionRecommendation(name='output_profile',
             choices=[x.short_name for x in output_profiles()],
             help=_('Specify the output profile. The output profile '
                    'tells the conversion system how to optimize the '
-                   'created document for the specified device (such as by resizing images for the device screen size). In some cases, '
+                   'created document for the specified device. In some cases, '
                    'an output profile can be used to optimize the output for a particular device, but this is rarely necessary. '
                    'Choices are:') + ', '.join([
                        x.short_name for x in output_profiles()])
@@ -410,6 +420,11 @@ OptionRecommendation(name='remove_fake_margins',
                 'case you can disable the removal.')
         ),
 
+OptionRecommendation(name='add_alt_text_to_img',
+    recommended_value=False, level=OptionRecommendation.LOW,
+    help=_('When an <img> tag has no alt attribute, check the associated image file for metadata that specifies alternate text, and'
+            ' use it to fill in the alt attribute. The alt attribute is used by screen readers for assisting the visually challenged.')
+),
 
 OptionRecommendation(name='margin_top',
         recommended_value=5.0, level=OptionRecommendation.LOW,
@@ -545,13 +560,15 @@ OptionRecommendation(name='asciiize',
 OptionRecommendation(name='keep_ligatures',
             recommended_value=False, level=OptionRecommendation.LOW,
             help=_('Preserve ligatures present in the input document. '
-                'A ligature is a special rendering of a pair of '
+                'A ligature is a combined character of a pair of '
                 'characters like ff, fi, fl et cetera. '
                 'Most readers do not have support for '
                 'ligatures in their default fonts, so they are '
                 'unlikely to render correctly. By default, calibre '
                 'will turn a ligature into the corresponding pair of normal '
-                'characters. This option will preserve them instead.')
+                'characters. Note that ligatures here mean only unicode ligatures '
+                'not ligatures created via CSS or font styles. '
+                'This option will preserve them instead.')
         ),
 
 OptionRecommendation(name='title',
@@ -923,9 +940,11 @@ OptionRecommendation(name='search_replace',
                 setattr(mi, x, val)
 
     def download_cover(self, url):
-        from calibre import browser
-        from PIL import Image
         import io
+
+        from PIL import Image
+
+        from calibre import browser
         from calibre.ptempfile import PersistentTemporaryFile
         self.log('Downloading cover from %r'%url)
         br = browser()
@@ -948,7 +967,7 @@ OptionRecommendation(name='search_replace',
         if self.opts.read_metadata_from_opf is not None:
             self.opts.read_metadata_from_opf = os.path.abspath(
                                             self.opts.read_metadata_from_opf)
-            with lopen(self.opts.read_metadata_from_opf, 'rb') as stream:
+            with open(self.opts.read_metadata_from_opf, 'rb') as stream:
                 opf = OPF(stream, os.path.dirname(self.opts.read_metadata_from_opf))
             mi = opf.to_book_metadata()
         self.opts_to_mi(mi)
@@ -958,7 +977,7 @@ OptionRecommendation(name='search_replace',
             ext = mi.cover.rpartition('.')[-1].lower().strip()
             if ext not in ('png', 'jpg', 'jpeg', 'gif'):
                 ext = 'jpg'
-            with lopen(mi.cover, 'rb') as stream:
+            with open(mi.cover, 'rb') as stream:
                 mi.cover_data = (ext, stream.read())
             mi.cover = None
         self.user_metadata = mi
@@ -1055,7 +1074,9 @@ OptionRecommendation(name='search_replace',
         if self.opts.embed_all_fonts or self.opts.embed_font_family:
             # Start the threaded font scanner now, for performance
             from calibre.utils.fonts.scanner import font_scanner  # noqa
-        import css_parser, logging
+        import logging
+
+        import css_parser
         css_parser.log.setLevel(logging.WARN)
         get_types_map()  # Ensure the mimetypes module is initialized
 
@@ -1064,7 +1085,7 @@ OptionRecommendation(name='search_replace',
             self.opts.debug_pipeline = os.path.abspath(self.opts.debug_pipeline)
             if not os.path.exists(self.opts.debug_pipeline):
                 os.makedirs(self.opts.debug_pipeline)
-            with lopen(os.path.join(self.opts.debug_pipeline, 'README.txt'), 'wb') as f:
+            with open(os.path.join(self.opts.debug_pipeline, 'README.txt'), 'wb') as f:
                 f.write(DEBUG_README)
             for x in ('input', 'parsed', 'structure', 'processed'):
                 x = os.path.join(self.opts.debug_pipeline, x)
@@ -1082,7 +1103,7 @@ OptionRecommendation(name='search_replace',
 
         tdir = PersistentTemporaryDirectory('_plumber')
         stream = self.input if self.input_fmt == 'recipe' else \
-                lopen(self.input, 'rb')
+                open(self.input, 'rb')
         if self.input_fmt == 'recipe':
             self.opts.original_recipe_input_arg = self.original_input_arg
 
@@ -1189,6 +1210,12 @@ OptionRecommendation(name='search_replace',
 
         from calibre.ebooks.oeb.transforms.jacket import Jacket
         Jacket()(self.oeb, self.opts, self.user_metadata)
+        pr(0.37)
+        self.flush()
+
+        if self.opts.add_alt_text_to_img:
+            from calibre.ebooks.oeb.transforms.alt_text import AddAltText
+            AddAltText()(self.oeb, self.opts)
         pr(0.4)
         self.flush()
 
@@ -1199,7 +1226,7 @@ OptionRecommendation(name='search_replace',
 
         if self.opts.extra_css and os.path.exists(self.opts.extra_css):
             with open(self.opts.extra_css, 'rb') as f:
-                self.opts.extra_css = f.read()
+                self.opts.extra_css = f.read().decode('utf-8')
 
         oibl = self.opts.insert_blank_line
         orps  = self.opts.remove_paragraph_spacing
@@ -1242,8 +1269,7 @@ OptionRecommendation(name='search_replace',
         self.opts.insert_blank_line = oibl
         self.opts.remove_paragraph_spacing = orps
 
-        from calibre.ebooks.oeb.transforms.page_margin import \
-            RemoveFakeMargins, RemoveAdobeMargins
+        from calibre.ebooks.oeb.transforms.page_margin import RemoveAdobeMargins, RemoveFakeMargins
         RemoveFakeMargins()(self.oeb, self.log, self.opts)
         RemoveAdobeMargins()(self.oeb, self.log, self.opts)
 

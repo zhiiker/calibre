@@ -5,15 +5,16 @@ __docformat__ = 'restructuredtext en'
 '''
 ebook-meta
 '''
-import sys, os, unicodedata
+import os
+import sys
+import unicodedata
 
-from calibre.utils.config import StringConfig
-from calibre.customize.ui import metadata_readers, metadata_writers, force_identifiers
-from calibre.ebooks.metadata.meta import get_metadata, set_metadata
-from calibre.ebooks.metadata import string_to_authors, authors_to_sort_string, \
-                    title_sort, MetaInformation
-from calibre.ebooks.lrf.meta import LRFMetaFile
 from calibre import prints
+from calibre.customize.ui import force_identifiers, metadata_readers, metadata_writers
+from calibre.ebooks.lrf.meta import LRFMetaFile
+from calibre.ebooks.metadata import MetaInformation, authors_to_sort_string, string_to_authors, title_sort
+from calibre.ebooks.metadata.meta import get_metadata, set_metadata
+from calibre.utils.config import StringConfig
 from calibre.utils.date import parse_date
 from polyglot.builtins import iteritems
 
@@ -80,6 +81,9 @@ def config():
     c.add_opt('get_cover', ['--get-cover'],
               help=_('Get the cover from the e-book and save it at as the '
                      'specified file.'))
+    c.add_opt('disallow_rendered_cover', ['--disallow-rendered-cover'], action='store_true', help=_(
+        'For formats like EPUB that use a "default cover" of the first page rendered, disallow such default covers'))
+
     c.add_opt('to_opf', ['--to-opf'],
               help=_('Specify the name of an OPF file. The metadata will '
                      'be written to the OPF file.'))
@@ -181,7 +185,8 @@ def main(args=sys.argv):
         if getattr(opts, pref.name) is not None:
             trying_to_set = True
             break
-    with open(path, 'rb') as stream:
+    from calibre.ebooks.metadata.epub import epub_metadata_settings
+    with open(path, 'rb') as stream, epub_metadata_settings(allow_rendered_cover=not opts.disallow_rendered_cover):
         mi = get_metadata(stream, stream_type, force_read_metadata=True)
     if trying_to_set:
         prints(_('Original metadata')+'::')

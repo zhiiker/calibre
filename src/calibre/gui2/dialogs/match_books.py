@@ -6,12 +6,12 @@ __copyright__ = '2013, Kovid Goyal kovid@kovidgoyal.net'
 __docformat__ = 'restructuredtext en'
 
 
-from qt.core import (Qt, QDialog, QAbstractItemView, QTableWidgetItem,
-                      QByteArray, QApplication, QCursor, QTimer)
+from qt.core import QAbstractItemView, QApplication, QCursor, QDialog, Qt, QTableWidgetItem, QTimer
 
-from calibre.gui2 import gprefs, error_dialog
+from calibre.gui2 import error_dialog, gprefs
 from calibre.gui2.dialogs.match_books_ui import Ui_MatchBooks
 from calibre.utils.icu import sort_key
+from calibre.utils.localization import ngettext
 
 
 class TableItem(QTableWidgetItem):
@@ -56,9 +56,7 @@ class MatchBooks(QDialog, Ui_MatchBooks):
         try:
             self.books_table_column_widths = \
                         gprefs.get('match_books_dialog_books_table_widths', None)
-            geom = gprefs.get('match_books_dialog_geometry', None)
-            if geom:
-                QApplication.instance().safe_restore_geometry(self, QByteArray(geom))
+            self.restore_geometry(gprefs, 'match_books_dialog_geometry')
         except:
             pass
 
@@ -170,7 +168,7 @@ class MatchBooks(QDialog, Ui_MatchBooks):
             # have a width. Assume 25. Not a problem because user-changed column
             # widths will be remembered
             w = self.books_table.width() - 25 - self.books_table.verticalHeader().width()
-            w /= self.books_table.columnCount()
+            w //= self.books_table.columnCount()
             for c in range(0, self.books_table.columnCount()):
                 self.books_table.setColumnWidth(c, w)
         self.save_state()
@@ -189,7 +187,7 @@ class MatchBooks(QDialog, Ui_MatchBooks):
         for c in range(0, self.books_table.columnCount()):
             self.books_table_column_widths.append(self.books_table.columnWidth(c))
         gprefs['match_books_dialog_books_table_widths'] = self.books_table_column_widths
-        gprefs['match_books_dialog_geometry'] = bytearray(self.saveGeometry())
+        self.save_geometry(gprefs, 'match_books_dialog_geometry')
         self.search_text.save_history()
 
     def close(self):

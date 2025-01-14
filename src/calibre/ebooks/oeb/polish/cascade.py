@@ -2,21 +2,22 @@
 # License: GPLv3 Copyright: 2016, Kovid Goyal <kovid at kovidgoyal.net>
 
 
+import re
 from collections import defaultdict, namedtuple
 from functools import partial
 from itertools import count
 from operator import itemgetter
-import re
 
-from css_parser.css import CSSStyleSheet, CSSRule, Property
+from css_parser.css import CSSRule, CSSStyleSheet, Property
+from css_selectors import INAPPROPRIATE_PSEUDO_CLASSES, Select, SelectorError
+from tinycss.fonts3 import parse_font_family, serialize_font_family
 
-from css_selectors import Select, INAPPROPRIATE_PSEUDO_CLASSES, SelectorError
 from calibre import as_unicode
 from calibre.ebooks.css_transform_rules import all_properties
-from calibre.ebooks.oeb.base import OEB_STYLES, XHTML, css_text
-from calibre.ebooks.oeb.normalize_css import normalizers, DEFAULTS
-from calibre.ebooks.oeb.stylizer import media_ok, INHERITED
-from tinycss.fonts3 import serialize_font_family, parse_font_family
+from calibre.ebooks.oeb.base import OEB_STYLES, SVG, XHTML, css_text
+from calibre.ebooks.oeb.normalize_css import DEFAULTS, normalizers
+from calibre.ebooks.oeb.stylizer import INHERITED, media_ok
+from calibre.utils.resources import get_path as P
 from polyglot.builtins import iteritems, itervalues
 
 _html_css_stylesheet = None
@@ -186,7 +187,7 @@ def resolve_styles(container, name, select=None, sheet_callback=None):
 
     process_sheet(html_css_stylesheet(container), 'user-agent.css')
 
-    for elem in root.iterdescendants(XHTML('style'), XHTML('link')):
+    for elem in root.iterdescendants(XHTML('style'), SVG('style'), XHTML('link')):
         if elem.tag.lower().endswith('style'):
             if not elem.text:
                 continue
@@ -253,7 +254,20 @@ def resolve_property(style_map, elem, name):
     return defvals().get(name)
 
 
-def resolve_pseudo_property(style_map, pseudo_style_map, elem, prop, name, abort_on_missing=False):
+def resolve_pseudo_property(
+    style_map, pseudo_style_map, elem, prop, name,
+    abort_on_missing=False, check_if_pseudo_applies=False, check_ancestors=False
+):
+    if check_if_pseudo_applies:
+        q = elem
+        while q is not None:
+            val = pseudo_style_map.get(q, {}).get(prop, {}).get(name)
+            if val is not None:
+                return True
+            if not check_ancestors:
+                break
+            q = q.getparent()
+        return False
     sub_map = pseudo_style_map.get(elem)
     if abort_on_missing and sub_map is None:
         return None
@@ -266,5 +280,14 @@ def resolve_pseudo_property(style_map, pseudo_style_map, elem, prop, name, abort
             if val is not None:
                 return val
     if name in INHERITED:
+        if check_ancestors:
+            q = elem.getparent()
+            while q is not None:
+                val = pseudo_style_map.get(q, {}).get(prop, {}).get(name)
+                if val is not None:
+                    return val
+                if not check_ancestors:
+                    break
+                q = q.getparent()
         return resolve_property(style_map, elem, name)
     return defvals().get(name)

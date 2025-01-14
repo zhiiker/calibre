@@ -1,9 +1,15 @@
 __license__   = 'GPL v3'
 __copyright__ = '2008, Kovid Goyal <kovid at kovidgoyal.net>'
-import struct, array, zlib, io, collections, re
+import array
+import collections
+import io
+import re
+import struct
+import zlib
 
-from calibre.ebooks.lrf import LRFParseError, PRS500_PROFILE
-from calibre import entity_to_unicode, prepare_string_for_xml
+from calibre import prepare_string_for_xml
+from calibre.ebooks.html_entities import entity_to_unicode_in_python
+from calibre.ebooks.lrf import PRS500_PROFILE, LRFParseError
 from calibre.ebooks.lrf.tags import Tag
 
 ruby_tags = {
@@ -598,7 +604,7 @@ class Block(LRFStream, TextCSS):
                 self.attrs[attr] = getattr(self, attr)
 
     def __str__(self):
-        s = '\n<%s objid="%d" blockstyle="%d" '%(self.name, self.id, self.style_id)
+        s = '\n<%s objid="%d" blockstyle="%s" '%(self.name, self.id, getattr(self, 'style_id', ''))
         if hasattr(self, 'textstyle_id'):
             s += 'textstyle="%d" '%(self.textstyle_id,)
         for attr in self.attrs:
@@ -706,7 +712,7 @@ class Text(LRFStream):
         s = str(text, "utf-16-le")
         if s:
             s = s.translate(self.text_map)
-            self.content.append(self.entity_pattern.sub(entity_to_unicode, s))
+            self.content.append(self.entity_pattern.sub(entity_to_unicode_in_python, s))
 
     def end_container(self, tag, stream):
         self.content.append(None)

@@ -16,7 +16,8 @@ from math import ceil
 from multiprocessing import Pipe
 from threading import Thread
 
-from calibre import detect_ncpus as cpu_count, force_unicode
+from calibre import detect_ncpus as cpu_count
+from calibre import force_unicode
 from calibre.constants import DEBUG
 from calibre.ptempfile import base_dir
 from calibre.utils.ipc import eintr_retry_call
@@ -26,7 +27,6 @@ from calibre.utils.serialize import pickle_loads
 from polyglot.binary import as_hex_unicode
 from polyglot.builtins import environ_item, string_or_bytes
 from polyglot.queue import Empty, Queue
-
 
 server_counter = count()
 _name_counter = count()
@@ -193,7 +193,7 @@ class Server(Thread):
                     job.returncode = worker.returncode
                 elif os.path.exists(worker.rfile):
                     try:
-                        with lopen(worker.rfile, 'rb') as f:
+                        with open(worker.rfile, 'rb') as f:
                             job.result = pickle_loads(f.read())
                         os.remove(worker.rfile)
                     except:

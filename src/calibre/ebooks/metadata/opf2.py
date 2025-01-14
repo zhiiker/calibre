@@ -8,21 +8,33 @@ __docformat__ = 'restructuredtext en'
 lxml based OPF parser.
 '''
 
-import re, sys, functools, os, uuid, glob, io, json, copy
+import copy
+import functools
+import glob
+import io
+import json
+import os
+import re
+import sys
+import uuid
+from contextlib import suppress
 
 from lxml import etree
 
-from calibre.ebooks import escape_xpath_attr
+from calibre import guess_type, prints
 from calibre.constants import __appname__, __version__, filesystem_encoding
-from calibre.ebooks.metadata.toc import TOC
-from calibre.ebooks.metadata.utils import parse_opf, pretty_print_opf as _pretty_print
-from calibre.ebooks.metadata import string_to_authors, MetaInformation, check_isbn
+from calibre.ebooks import escape_xpath_attr
+from calibre.ebooks.metadata import MetaInformation, check_isbn, string_to_authors
 from calibre.ebooks.metadata.book.base import Metadata
-from calibre.utils.date import parse_date, isoformat
-from calibre.utils.localization import get_lang, canonicalize_lang
-from calibre import prints, guess_type
+from calibre.ebooks.metadata.toc import TOC
+from calibre.ebooks.metadata.utils import parse_opf
+from calibre.ebooks.metadata.utils import pretty_print_opf as _pretty_print
 from calibre.utils.cleantext import clean_ascii_chars, clean_xml_chars
 from calibre.utils.config import tweaks
+from calibre.utils.date import isoformat, parse_date
+from calibre.utils.icu import lower as icu_lower
+from calibre.utils.icu import upper as icu_upper
+from calibre.utils.localization import canonicalize_lang, get_lang
 from calibre.utils.xml_parse import safe_xml_fromstring
 from polyglot.builtins import iteritems
 from polyglot.urllib import unquote, urlparse
@@ -450,6 +462,37 @@ class MetadataField:
         obj.set_text(elem, self.renderer(val))
 
 
+class LinkMapsField:
+
+    def __get__(self, obj, type=None):
+        ans = obj.get_metadata_element('link_maps')
+        if ans is not None:
+            ans = obj.get_text(ans)
+            if ans:
+                with suppress(Exception):
+                    return json.loads(ans)
+        ans = obj.get_metadata_element('author_link_map')
+        if ans is not None:
+            ans = obj.get_text(ans)
+            if ans:
+                with suppress(Exception):
+                    return {'authors': json.loads(ans)}
+        return {}
+
+    def __set__(self, obj, val):
+        elem = obj.get_metadata_element('author_link_map')
+        if elem is not None:
+            elem.getparent().remove(elem)
+        elem = obj.get_metadata_element('link_maps')
+        if not val:
+            if elem is not None:
+                elem.getparent().remove(elem)
+            return
+        if elem is None:
+            elem = obj.create_metadata_element('link_maps', is_dc=False)
+        obj.set_text(elem, dump_dict(val))
+
+
 class TitleSortField(MetadataField):
 
     def __get__(self, obj, type=None):
@@ -480,13 +523,15 @@ class TitleSortField(MetadataField):
 
 
 def serialize_user_metadata(metadata_elem, all_user_metadata, tail='\n'+(' '*8)):
+    from calibre.ebooks.metadata.book.json_codec import encode_is_multiple, object_to_unicode
     from calibre.utils.config import to_json
-    from calibre.ebooks.metadata.book.json_codec import (object_to_unicode,
-                                                         encode_is_multiple)
 
     for name, fm in all_user_metadata.items():
         try:
             fm = copy.copy(fm)
+            if (fm.get('datatype', 'text') == 'composite' and
+                not fm.get('display', {}).get('composite_store_template_value_in_opf', True)):
+                    fm['#value#'] = ''
             encode_is_multiple(fm)
             fm = object_to_unicode(fm)
             fm = json.dumps(fm, default=to_json, ensure_ascii=False)
@@ -521,6 +566,13 @@ def dump_dict(cats):
     return json.dumps(object_to_unicode(cats), ensure_ascii=False,
             skipkeys=True)
 
+XPATH_NS = {
+    'dc': "http://purl.org/dc/elements/1.1/",
+    'opf': "http://www.idpf.org/2007/opf",
+    're' : 'http://exslt.org/regular-expressions'
+}
+XPath = functools.partial(etree.XPath, namespaces=XPATH_NS)
+
 
 class OPF:  # {{{
 
@@ -531,10 +583,6 @@ class OPF:  # {{{
                         'opf': "http://www.idpf.org/2007/opf",
                        }
     META             = '{%s}meta' % NAMESPACES['opf']
-    xpn = NAMESPACES.copy()
-    xpn.pop(None)
-    xpn['re'] = 'http://exslt.org/regular-expressions'
-    XPath = functools.partial(etree.XPath, namespaces=xpn)
     CONTENT          = XPath('self::*[re:match(name(), "meta$", "i")]/@content')
     TEXT             = XPath('string()')
 
@@ -584,11 +632,10 @@ class OPF:  # {{{
     user_categories = MetadataField('user_categories', is_dc=False,
                                     formatter=json.loads,
                                     renderer=dump_dict)
-    author_link_map = MetadataField('author_link_map', is_dc=False,
-                                formatter=json.loads, renderer=dump_dict)
+    link_maps = LinkMapsField()
 
     def __init__(self, stream, basedir=os.getcwd(), unquote_urls=True,
-            populate_spine=True, try_to_guess_cover=True, preparsed_opf=None, read_toc=True):
+            populate_spine=True, try_to_guess_cover=False, preparsed_opf=None, read_toc=True):
         self.try_to_guess_cover = try_to_guess_cover
         self.basedir  = self.base_dir = basedir
         self.path_to_html_toc = self.html_toc_fragment = None
@@ -626,8 +673,8 @@ class OPF:  # {{{
     def read_user_metadata(self):
         self._user_metadata_ = {}
         temp = Metadata('x', ['x'])
-        from calibre.utils.config import from_json
         from calibre.ebooks.metadata.book.json_codec import decode_is_multiple
+        from calibre.utils.config import from_json
         elems = self.root.xpath('//*[name() = "meta" and starts-with(@name,'
                 '"calibre:user_metadata:") and @content]')
         for elem in elems:
@@ -651,11 +698,19 @@ class OPF:  # {{{
         if self.package_version >= 3.0:
             from calibre.ebooks.metadata.opf3 import read_metadata
             return read_metadata(self.root)
-        ans = MetaInformation(self)
+        # avoid deepcopy of non-metadata items
+        manifest, spine, guide, toc = self.manifest, self.spine, self.guide, self.toc
+        self.manifest = self.spine = self.guide = self.toc = None
+        try:
+            ans = MetaInformation(self)
+        finally:
+            self.manifest, self.spine, self.guide, self.toc = manifest, spine, guide, toc
         for n, v in self._user_metadata_.items():
             ans.set_user_metadata(n, v)
 
         ans.set_identifiers(self.get_identifiers())
+        ans.link_maps = self.link_maps
+        ans.cover = self.cover  # needed because we nuke the guide while creating ans
 
         return ans
 
@@ -677,7 +732,7 @@ class OPF:  # {{{
     def find_toc(self):
         self.toc = None
         try:
-            spine = self.XPath('descendant::*[re:match(name(), "spine", "i")]')(self.root)
+            spine = XPath('descendant::*[re:match(name(), "spine", "i")]')(self.root)
             toc = None
             if spine:
                 spine = spine[0]
@@ -778,7 +833,7 @@ class OPF:  # {{{
 
     def replace_spine_items_by_idref(self, idref, new_idrefs):
         items = list(map(self.create_spine_item, new_idrefs))
-        spine = self.XPath('/opf:package/*[re:match(name(), "spine", "i")]')(self.root)[0]
+        spine = XPath('/opf:package/*[re:match(name(), "spine", "i")]')(self.root)[0]
         old = [i for i in self.iterspine() if i.get('idref', None) == idref]
         for x in old:
             i = spine.index(x)
@@ -973,7 +1028,7 @@ class OPF:  # {{{
     def get_identifiers(self):
         identifiers = {}
         schemeless = []
-        for x in self.XPath(
+        for x in XPath(
             'descendant::*[local-name() = "identifier" and text()]')(
                     self.metadata):
             found_scheme = False
@@ -1014,7 +1069,7 @@ class OPF:  # {{{
                 uuid_id = self.root.attrib[attr]
                 break
 
-        for x in self.XPath(
+        for x in XPath(
             'descendant::*[local-name() = "identifier"]')(
                     self.metadata):
             xid = x.get('id', None)
@@ -1097,9 +1152,14 @@ class OPF:  # {{{
         for x in matches:
             x.getparent().remove(x)
 
+        num_done = 0
         for lang in val:
             l = self.create_metadata_element('language')
             self.set_text(l, str(lang))
+            num_done += 1
+        if num_done == 0:
+            l = self.create_metadata_element('language')
+            self.set_text(l, 'und')
 
     @property
     def raw_languages(self):
@@ -1147,7 +1207,7 @@ class OPF:  # {{{
 
     @property
     def page_progression_direction(self):
-        spine = self.XPath('descendant::*[re:match(name(), "spine", "i")][1]')(self.root)
+        spine = XPath('descendant::*[re:match(name(), "spine", "i")][1]')(self.root)
         if spine:
             for k, v in iteritems(spine[0].attrib):
                 if k == 'page-progression-direction' or k.endswith('}page-progression-direction'):
@@ -1155,28 +1215,8 @@ class OPF:  # {{{
 
     @property
     def primary_writing_mode(self):
-        for m in self.XPath('//*[local-name()="meta" and @name="primary-writing-mode" and @content]')(self.root):
+        for m in XPath('//*[local-name()="meta" and @name="primary-writing-mode" and @content]')(self.root):
             return m.get('content')
-
-    def guess_cover(self):
-        '''
-        Try to guess a cover. Needed for some old/badly formed OPF files.
-        '''
-        if self.base_dir and os.path.exists(self.base_dir):
-            for item in self.identifier_path(self.metadata):
-                scheme = None
-                for key in item.attrib.keys():
-                    if key.endswith('scheme'):
-                        scheme = item.get(key)
-                        break
-                if scheme is None:
-                    continue
-                if item.text:
-                    prefix = item.text.replace('-', '')
-                    for suffix in ['.jpg', '.jpeg', '.gif', '.png', '.bmp']:
-                        cpath = os.access(os.path.join(self.base_dir, prefix+suffix), os.R_OK)
-                        if os.access(os.path.join(self.base_dir, prefix+suffix), os.R_OK):
-                            return cpath
 
     @property
     def epub3_raster_cover(self):
@@ -1239,11 +1279,6 @@ class OPF:  # {{{
                 for item in self.guide:
                     if item.type and item.type.lower() == t:
                         return item.path
-        try:
-            if self.try_to_guess_cover:
-                return self.guess_cover()
-        except:
-            pass
 
     @cover.setter
     def cover(self, path):
@@ -1321,7 +1356,7 @@ class OPF:  # {{{
         for attr in ('title', 'authors', 'author_sort', 'title_sort',
                      'publisher', 'series', 'series_index', 'rating',
                      'isbn', 'tags', 'category', 'comments', 'book_producer',
-                     'pubdate', 'user_categories', 'author_link_map'):
+                     'pubdate', 'user_categories', 'link_maps'):
             val = getattr(mi, attr, None)
             if attr == 'rating' and val:
                 val = float(val)
@@ -1473,7 +1508,8 @@ class OPFCreator(Metadata):
 
         # Actual rendering
         from lxml.builder import ElementMaker
-        from calibre.ebooks.oeb.base import OPF2_NS, DC11_NS, CALIBRE_NS
+
+        from calibre.ebooks.oeb.base import CALIBRE_NS, DC11_NS, OPF2_NS
         DNS = OPF2_NS+'___xx___'
         E = ElementMaker(namespace=DNS, nsmap={None:DNS})
         M = ElementMaker(namespace=DNS,
@@ -1596,9 +1632,11 @@ class OPFCreator(Metadata):
 
 
 def metadata_to_opf(mi, as_string=True, default_lang=None):
-    from lxml import etree
     import textwrap
-    from calibre.ebooks.oeb.base import OPF, DC
+
+    from lxml import etree
+
+    from calibre.ebooks.oeb.base import DC, OPF
 
     if not mi.application_id:
         mi.application_id = str(uuid.uuid4())
@@ -1677,9 +1715,11 @@ def metadata_to_opf(mi, as_string=True, default_lang=None):
     if mi.tags:
         for tag in mi.tags:
             factory(DC('subject'), tag)
-    meta = lambda n, c: factory('meta', name='calibre:'+n, content=c)
-    if getattr(mi, 'author_link_map', None) is not None:
-        meta('author_link_map', dump_dict(mi.author_link_map))
+
+    def meta(n, c):
+        return factory('meta', name='calibre:' + n, content=c)
+    if not mi.is_null('link_maps'):
+        meta('link_maps', dump_dict(mi.link_maps))
     if mi.series:
         meta('series', mi.series)
     if mi.series_index is not None:

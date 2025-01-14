@@ -5,18 +5,22 @@ __license__   = 'GPL v3'
 __copyright__ = '2012, Kovid Goyal <kovid@kovidgoyal.net>'
 __docformat__ = 'restructuredtext en'
 
-import random, numbers
-from io import BytesIO
+import numbers
+import random
 from collections import OrderedDict
+from io import BytesIO
 from struct import pack
 
 from calibre.ebooks.mobi.utils import align_block
-from polyglot.builtins import iteritems, as_bytes
+from polyglot.builtins import as_bytes, iteritems
 
 NULL = 0xffffffff
-zeroes = lambda x: b'\0'*x
-nulls = lambda x: b'\xff'*x
-short = lambda x: pack(b'>H', x)
+def zeroes(x):
+    return (b'\x00' * x)
+def nulls(x):
+    return (b'\xff' * x)
+def short(x):
+    return pack(b'>H', x)
 
 
 class Header(OrderedDict):

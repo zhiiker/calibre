@@ -6,7 +6,9 @@ __copyright__ = '2015, Kovid Goyal <kovid at kovidgoyal.net>'
 
 # Support server pre-activation, such as with systemd's socket activation
 
-import socket, errno
+import errno
+import socket
+
 from calibre.constants import islinux
 
 
@@ -33,7 +35,8 @@ if islinux:
         return addr.nl_family
 
     try:
-        systemd = ctypes.CDLL(ctypes.util.find_library('systemd'))
+        from ctypes.util import find_library
+        systemd = ctypes.CDLL(find_library('systemd'))
         systemd.sd_listen_fds
     except Exception:
         pass

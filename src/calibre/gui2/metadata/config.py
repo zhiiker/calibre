@@ -7,10 +7,8 @@ __docformat__ = 'restructuredtext en'
 
 import numbers
 import textwrap
-from qt.core import (
-    QCheckBox, QComboBox, QDoubleSpinBox, QGridLayout, QGroupBox, QLabel, QLineEdit,
-    QListView, QSpinBox, Qt, QVBoxLayout, QWidget
-)
+
+from qt.core import QCheckBox, QComboBox, QDoubleSpinBox, QGridLayout, QGroupBox, QLabel, QLineEdit, QListView, QSpinBox, Qt, QVBoxLayout, QWidget
 
 from calibre.gui2.preferences.metadata_sources import FieldsModel as FM
 from calibre.utils.icu import sort_key
@@ -98,6 +96,7 @@ class ConfigWidget(QWidget):
         if opt.type == 'number':
             c = QSpinBox if isinstance(opt.default, numbers.Integral) else QDoubleSpinBox
             widget = c(self)
+            widget.setRange(min(widget.minimum(), 20 * val), max(widget.maximum(), 20 * val))
             widget.setValue(val)
         elif opt.type == 'string':
             widget = QLineEdit(self)

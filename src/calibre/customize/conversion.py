@@ -1,7 +1,10 @@
 '''
 Defines the plugin system for conversions.
 '''
-import re, os, shutil, numbers
+import numbers
+import os
+import re
+import shutil
 
 from calibre import CurrentDir
 from calibre.customize import Plugin
@@ -105,7 +108,7 @@ def gui_configuration_widget(name, parent, get_option_by_name,
             output_widget = importlib.import_module(
                     'calibre.gui2.convert.'+name)
             pw = output_widget.PluginWidget
-            pw.ICON = I('back.png')
+            pw.ICON = 'back.png'
             pw.HELP = _('Options specific to the output format.')
             return widget_factory(pw)
         except ImportError:
@@ -115,7 +118,7 @@ def gui_configuration_widget(name, parent, get_option_by_name,
             input_widget = importlib.import_module(
                     'calibre.gui2.convert.'+name)
             pw = input_widget.PluginWidget
-            pw.ICON = I('forward.png')
+            pw.ICON = 'forward.png'
             pw.HELP = _('Options specific to the input format.')
             return widget_factory(pw)
         except ImportError:
@@ -218,7 +221,7 @@ class InputFormatPlugin(Plugin):
                          by this plugin.
         :param log: A :class:`calibre.utils.logging.Log` object. All output
                     should use this object.
-        :param accelarators: A dictionary of various information that the input
+        :param accelerators: A dictionary of various information that the input
                              plugin can get easily that would speed up the
                              subsequent stages of the conversion.
 
@@ -350,7 +353,7 @@ class OutputFormatPlugin(Plugin):
 
     def specialize_css_for_output(self, log, opts, item, stylizer):
         '''
-        Can be used to make changes to the css during the CSS flattening
+        Can be used to make changes to the CSS during the CSS flattening
         process.
 
         :param item: The item (HTML file) being processed

@@ -5,15 +5,16 @@ __copyright__ = '2012, Kovid Goyal <kovid@kovidgoyal.net>'
 __docformat__ = 'restructuredtext en'
 
 from collections import namedtuple
-from struct import pack
 from io import BytesIO
+from struct import pack
 
-from calibre.ebooks.mobi.utils import CNCX, encint, align_block
+from calibre.ebooks.mobi.utils import CNCX, align_block, encint
 from calibre.ebooks.mobi.writer8.header import Header
 
 TagMeta_ = namedtuple('TagMeta',
         'name number values_per_entry bitmask end_flag')
-TagMeta = lambda x:TagMeta_(*x)
+def TagMeta(x):
+    return TagMeta_(*x)
 EndTagTable = TagMeta(('eof', 0, 0, 0, 1))
 
 # map of mask to number of shifts needed, works with 1 bit and two-bit wide masks
@@ -373,7 +374,8 @@ class NonLinearNCXIndex(NCXIndex):
 if __name__ == '__main__':
     # Generate a document with a large number of index entries using both
     # calibre and kindlegen and compare the output
-    import os, subprocess
+    import os
+    import subprocess
     os.chdir('/t')
     paras = ['<p>%d</p>' % i for i in range(4000)]
     raw = '<html><body>' + '\n\n'.join(paras) + '</body></html>'

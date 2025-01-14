@@ -5,9 +5,8 @@ HTML-TOC-adding transform.
 __license__   = 'GPL v3'
 __copyright__ = '2008, Marshall T. Vandegrift <llasram@gmail.com>'
 
-from calibre.ebooks.oeb.base import XML, XHTML, XHTML_NS
-from calibre.ebooks.oeb.base import XHTML_MIME, CSS_MIME
-from calibre.ebooks.oeb.base import element, XPath
+from calibre.ebooks.oeb.base import CSS_MIME, XHTML, XHTML_MIME, XHTML_NS, XML, XPath, element
+from calibre.utils.localization import __
 
 __all__ = ['HTMLTOCAdder']
 
@@ -55,7 +54,7 @@ class HTMLTOCAdder:
     def config(cls, cfg):
         group = cfg.add_group('htmltoc', _('HTML TOC generation options.'))
         group('toc_title', ['--toc-title'], default=None,
-              help=_('Title for any generated in-line table of contents.'))
+              help=_('Title for any generated inline table of contents.'))
         return cfg
 
     @classmethod

@@ -2,25 +2,18 @@
 # License: GPLv3 Copyright: 2016, Kovid Goyal <kovid at kovidgoyal.net>
 
 
-from qt.core import (
-    QComboBox, QFrame, QHBoxLayout, QIcon, QLabel, QLineEdit, QPushButton,
-    QScrollArea, Qt, QToolButton, QVBoxLayout, QWidget, pyqtSignal
-)
+from qt.core import QComboBox, QFrame, QHBoxLayout, QIcon, QLabel, QLineEdit, QPushButton, QScrollArea, Qt, QToolButton, QVBoxLayout, QWidget, pyqtSignal
 
 from calibre import prepare_string_for_xml
-from calibre.ebooks.html_transform_rules import (
-    ACTION_MAP, MATCH_TYPE_MAP, export_rules, import_rules, transform_html,
-    validate_rule
-)
+from calibre.ebooks.html_transform_rules import ACTION_MAP, MATCH_TYPE_MAP, export_rules, import_rules, transform_html, validate_rule
 from calibre.gui2 import elided_text, error_dialog
 from calibre.gui2.convert.xpath_wizard import XPathEdit
-from calibre.gui2.css_transform_rules import (
-    RulesWidget as RulesWidgetBase, Tester as TesterBase
-)
-from calibre.gui2.tag_mapper import (
-    RuleEditDialog as RuleEditDialogBase, RuleItem as RuleItemBase,
-    Rules as RulesBase, RulesDialog as RulesDialogBase
-)
+from calibre.gui2.css_transform_rules import RulesWidget as RulesWidgetBase
+from calibre.gui2.css_transform_rules import Tester as TesterBase
+from calibre.gui2.tag_mapper import RuleEditDialog as RuleEditDialogBase
+from calibre.gui2.tag_mapper import RuleItem as RuleItemBase
+from calibre.gui2.tag_mapper import Rules as RulesBase
+from calibre.gui2.tag_mapper import RulesDialog as RulesDialogBase
 
 # Classes for rule edit widget {{{
 
@@ -56,7 +49,7 @@ class TagAction(QWidget):
         l.addLayout(h)
 
         self.remove_button = b = QToolButton(self)
-        b.setToolTip(_('Remove this action')), b.setIcon(QIcon(I('minus.png')))
+        b.setToolTip(_('Remove this action')), b.setIcon(QIcon.ic('minus.png'))
         b.clicked.connect(self.request_remove)
         h.addWidget(b)
         self.action_desc = la = QLabel('')
@@ -217,7 +210,7 @@ class RuleEdit(QWidget):  # {{{
         l.addWidget(self.thenl)
         self.actions = a = ActionsContainer(self)
         l.addWidget(a)
-        self.add_button = b = QPushButton(QIcon(I('plus.png')), _('Add another action'))
+        self.add_button = b = QPushButton(QIcon.ic('plus.png'), _('Add another action'))
         b.clicked.connect(self.actions.new_action)
         l.addWidget(b)
         self.update_state()

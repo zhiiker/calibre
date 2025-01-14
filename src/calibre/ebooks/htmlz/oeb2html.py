@@ -8,16 +8,16 @@ Transform OEB content into a single (more or less) HTML file.
 
 import os
 import re
-
 from functools import partial
+
+from css_parser import replaceUrls
 from lxml import html
 
 from calibre import prepare_string_for_xml
-from calibre.ebooks.oeb.base import (
-    XHTML, XHTML_NS, SVG_NS, barename, namespace, OEB_IMAGES, XLINK, rewrite_links, urlnormalize)
+from calibre.ebooks.oeb.base import OEB_IMAGES, SVG_NS, XHTML, XHTML_NS, XLINK, barename, namespace, rewrite_links, urlnormalize
 from calibre.ebooks.oeb.stylizer import Stylizer
 from calibre.utils.logging import default_log
-from polyglot.builtins import string_or_bytes, as_unicode
+from polyglot.builtins import as_unicode, string_or_bytes
 from polyglot.urllib import urldefrag
 
 SELF_CLOSING_TAGS = {'area', 'base', 'basefont', 'br', 'hr', 'input', 'img', 'link', 'meta'}
@@ -79,31 +79,32 @@ class OEB2HTML:
         return self.links[href]
 
     def map_resources(self, oeb_book):
-        for item in oeb_book.manifest:
-            if item.media_type in OEB_IMAGES:
-                if item.href not in self.images:
-                    ext = os.path.splitext(item.href)[1]
-                    fname = f'{len(self.images)}{ext}'
-                    fname = fname.zfill(10)
-                    self.images[item.href] = fname
-            if item in oeb_book.spine:
-                self.get_link_id(item.href)
-                root = item.data.find(XHTML('body'))
-                link_attrs = set(html.defs.link_attrs)
-                link_attrs.add(XLINK('href'))
-                for el in root.iter():
-                    attribs = el.attrib
-                    try:
-                        if not isinstance(el.tag, string_or_bytes):
-                            continue
-                    except:
+        from operator import attrgetter
+        images = sorted((item for item in oeb_book.manifest if item.media_type in OEB_IMAGES), key=attrgetter('href'))
+        for item in images:
+            if item.href not in self.images:
+                ext = os.path.splitext(item.href)[1]
+                fname = f'{len(self.images):06d}{ext}'
+                self.images[item.href] = fname
+
+        for item in oeb_book.spine:
+            self.get_link_id(item.href)
+            root = item.data.find(XHTML('body'))
+            link_attrs = set(html.defs.link_attrs)
+            link_attrs.add(XLINK('href'))
+            for el in root.iter():
+                attribs = el.attrib
+                try:
+                    if not isinstance(el.tag, string_or_bytes):
                         continue
-                    for attr in attribs:
-                        if attr in link_attrs:
-                            href = item.abshref(attribs[attr])
-                            href, id = urldefrag(href)
-                            if href in self.base_hrefs:
-                                self.get_link_id(href, id)
+                except Exception:
+                    continue
+                for attr in attribs:
+                    if attr in link_attrs:
+                        href = item.abshref(attribs[attr])
+                        href, id = urldefrag(href)
+                        if href in self.base_hrefs:
+                            self.get_link_id(href, id)
 
     def rewrite_link(self, url, page=None):
         if not page:
@@ -130,7 +131,8 @@ class OEB2HTML:
     def get_css(self, oeb_book):
         css = ''
         for item in oeb_book.manifest:
-            if item.media_type == 'text/css':
+            if hasattr(item.data, 'cssText'):
+                replaceUrls(item.data, partial(self.rewrite_link, page=item))
                 css += as_unicode(item.data.cssText) + '\n\n'
         return css
 

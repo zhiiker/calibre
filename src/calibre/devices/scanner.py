@@ -5,13 +5,14 @@ Device scanner that fetches list of devices on system ina  platform dependent
 manner.
 '''
 
-import sys, os, time
+import os
+import sys
+import time
 from collections import namedtuple
 from threading import Lock
 
-from calibre import prints, as_unicode
-from calibre.constants import (iswindows, ismacos, islinux, isfreebsd,
-        isnetbsd)
+from calibre import as_unicode, prints
+from calibre.constants import isfreebsd, islinux, ismacos, isnetbsd, iswindows
 
 osx_scanner = linux_scanner = freebsd_scanner = netbsd_scanner = None
 
@@ -79,6 +80,7 @@ class LibUSBScanner:
 
     def check_for_mem_leak(self):
         import gc
+
         from calibre.utils.mem import memory
         memory()
         for num in (1, 10, 100):
@@ -107,7 +109,7 @@ class LinuxScanner:
             raise RuntimeError('DeviceScanner requires the /sys filesystem to work.')
 
         def read(f):
-            with lopen(f, 'rb') as s:
+            with open(f, 'rb') as s:
                 return s.read().strip()
 
         for x in os.listdir(self.base):
@@ -199,8 +201,9 @@ class DeviceScanner:
 
 
 def test_for_mem_leak():
-    from calibre.utils.mem import memory, gc_histogram, diff_hists
     import gc
+
+    from calibre.utils.mem import diff_hists, gc_histogram, memory
     gc.disable()
     scanner = DeviceScanner()
     scanner.scan()

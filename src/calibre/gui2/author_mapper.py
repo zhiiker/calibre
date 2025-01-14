@@ -7,11 +7,12 @@ from collections import OrderedDict
 from calibre.ebooks.metadata import authors_to_string, string_to_authors
 from calibre.ebooks.metadata.author_mapper import compile_rules, map_authors
 from calibre.gui2 import Application, elided_text
-from calibre.gui2.tag_mapper import (
-    RuleEdit as RuleEditBase, RuleEditDialog as RuleEditDialogBase,
-    RuleItem as RuleItemBase, Rules as RulesBase, RulesDialog as RulesDialogBase,
-    Tester as TesterBase
-)
+from calibre.gui2.tag_mapper import RuleEdit as RuleEditBase
+from calibre.gui2.tag_mapper import RuleEditDialog as RuleEditDialogBase
+from calibre.gui2.tag_mapper import RuleItem as RuleItemBase
+from calibre.gui2.tag_mapper import Rules as RulesBase
+from calibre.gui2.tag_mapper import RulesDialog as RulesDialogBase
+from calibre.gui2.tag_mapper import Tester as TesterBase
 from calibre.utils.config import JSONConfig
 
 author_maps = JSONConfig('author-mapping-rules')
@@ -34,10 +35,11 @@ class RuleEdit(RuleEditBase):
         ('not_matches', _('does not match regex pattern')),
     ))
 
-    MSG = _('Create the rule below, the rule can be used to add or ignore files')
+    MSG = _('Create the rule below, the rule can be used to add or ignore authors')
     SUBJECT = _('the author, if the author name')
     VALUE_ERROR = _('You must provide a value for the author name to match')
     REPLACE_TEXT = _('with the name:')
+    SINGLE_EDIT_FIELD_NAME = 'authors'
 
     @property
     def can_use_tag_editor(self):

@@ -9,25 +9,47 @@ import posixpath
 import sys
 import weakref
 from contextlib import suppress
-from functools import partial, lru_cache
+from functools import lru_cache, partial
+
 from qt.core import (
-    QAction, QCoreApplication, QDialog, QDialogButtonBox, QGridLayout, QIcon,
-    QInputDialog, QLabel, QLineEdit, QMenu, QSize, Qt, QTimer, QToolButton,
-    QVBoxLayout, pyqtSignal
+    QAction,
+    QCoreApplication,
+    QDialog,
+    QDialogButtonBox,
+    QGridLayout,
+    QIcon,
+    QInputDialog,
+    QLabel,
+    QLineEdit,
+    QMenu,
+    QSize,
+    Qt,
+    QTimer,
+    QToolButton,
+    QVBoxLayout,
+    pyqtSignal,
 )
 
 from calibre import isbytestring, sanitize_file_name
-from calibre.constants import (
-    config_dir, filesystem_encoding, get_portable_base, isportable, iswindows
-)
+from calibre.constants import config_dir, filesystem_encoding, get_portable_base, isportable, iswindows
 from calibre.gui2 import (
-    Dispatcher, choose_dir, choose_images, error_dialog, gprefs, info_dialog,
-    open_local_file, pixmap_to_data, question_dialog, warning_dialog
+    Dispatcher,
+    choose_dir,
+    choose_images,
+    error_dialog,
+    gprefs,
+    info_dialog,
+    open_local_file,
+    pixmap_to_data,
+    question_dialog,
+    warning_dialog,
 )
 from calibre.gui2.actions import InterfaceAction
 from calibre.library import current_library_name
+from calibre.startup import connect_lambda
 from calibre.utils.config import prefs, tweaks
 from calibre.utils.icu import sort_key
+from calibre.utils.localization import ngettext
 
 
 def db_class():
@@ -139,14 +161,14 @@ class MovedDialog(QDialog):  # {{{
         self.loc = QLineEdit(loc, self)
         l.addWidget(self.loc, l.rowCount(), 0, 1, 1)
         self.cd = QToolButton(self)
-        self.cd.setIcon(QIcon(I('document_open.png')))
+        self.cd.setIcon(QIcon.ic('document_open.png'))
         self.cd.clicked.connect(self.choose_dir)
         l.addWidget(self.cd, l.rowCount() - 1, 1, 1, 1)
         self.bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Abort)
         b = self.bb.addButton(_('Library moved'), QDialogButtonBox.ButtonRole.AcceptRole)
-        b.setIcon(QIcon(I('ok.png')))
+        b.setIcon(QIcon.ic('ok.png'))
         b = self.bb.addButton(_('Forget library'), QDialogButtonBox.ButtonRole.RejectRole)
-        b.setIcon(QIcon(I('edit-clear.png')))
+        b.setIcon(QIcon.ic('edit-clear.png'))
         b.clicked.connect(self.forget_library)
         self.bb.accepted.connect(self.accept)
         self.bb.rejected.connect(self.reject)
@@ -188,7 +210,7 @@ class BackupStatus(QDialog):  # {{{
         bb.rejected.connect(self.reject)
         b = bb.addButton(_('Queue &all books for backup'), QDialogButtonBox.ButtonRole.ActionRole)
         b.clicked.connect(self.mark_all_dirty)
-        b.setIcon(QIcon(I('lt.png')))
+        b.setIcon(QIcon.ic('lt.png'))
         l.addWidget(bb)
         self.db = weakref.ref(gui.current_db)
         self.setResult(9)
@@ -265,7 +287,7 @@ class ChooseLibraryAction(InterfaceAction):
         ac.triggered.connect(self.pick_random)
 
         self.choose_library_icon_menu = QMenu(_('Change the icon for this library'))
-        self.choose_library_icon_menu.setIcon(QIcon(I('icon_choose.png')))
+        self.choose_library_icon_menu.setIcon(QIcon.ic('icon_choose.png'))
         self.choose_library_icon_action = self.create_action(
             spec=(_('Choose an icon'), 'icon_choose.png', None, None),
             attr='action_choose_library_icon')
@@ -392,7 +414,7 @@ class ChooseLibraryAction(InterfaceAction):
             traceback.print_exc()
 
     def set_library_icon(self):
-        icon = QIcon(library_icon_path())
+        icon = QIcon.ic(library_icon_path())
         has_icon = not icon.isNull() and len(icon.availableSizes()) > 0
         if not has_icon:
             icon = self.original_library_icon
@@ -532,7 +554,7 @@ class ChooseLibraryAction(InterfaceAction):
         restrictions.insert(0, '')
         for vl in restrictions:
             if vl == vl_at_startup:
-                self.vl_to_apply_menu.addAction(QIcon(I('ok.png')), vl if vl else _('No Virtual library'),
+                self.vl_to_apply_menu.addAction(QIcon.ic('ok.png'), vl if vl else _('No Virtual library'),
                                                 Dispatcher(partial(self.change_vl_at_startup_requested, vl)))
             else:
                 self.vl_to_apply_menu.addAction(vl if vl else _('No Virtual library'),
@@ -558,7 +580,8 @@ class ChooseLibraryAction(InterfaceAction):
         newname, ok = QInputDialog.getText(self.gui, _('Rename') + ' ' + old_name,
                 '<p>'+_(
                     'Choose a new name for the library <b>%s</b>. ')%name + '<p>'+_(
-                    'Note that the actual library folder will be renamed.'),
+                        'Note that the actual library folder will be renamed.') + '<p>' + _(
+                            'WARNING: This means that any calibre:// URLs that point to things in this library will stop working.'),
                 text=old_name)
         newname = sanitize_file_name(str(newname))
         if not ok or not newname or newname == old_name:
@@ -655,22 +678,37 @@ class ChooseLibraryAction(InterfaceAction):
         db = m.db
         db.prefs.disable_setting = True
         library_path = db.library_path
+        before = db.new_api.size_stats()
 
         d = DBCheck(self.gui, db)
-        d.start()
         try:
-            m.close()
-        except:
-            pass
-        d.break_cycles()
+            d.exec()
+            try:
+                m.close()
+            except Exception:
+                pass
+        finally:
+            d.break_cycles()
         self.gui.library_moved(library_path)
         if d.rejected:
             return
         if d.error is None:
+            after = self.gui.current_db.new_api.size_stats()
+            det_msg = ''
+            from calibre import human_readable
+            for which, title in {'main': _('books'), 'fts': _('full text search'), 'notes': _('notes')}.items():
+                if which != 'main' and not getattr(d, which).isChecked():
+                    continue
+                det_msg += '\n'
+                if before[which] == after[which]:
+                    det_msg += _('Size of the {} database was unchanged.').format(title)
+                else:
+                    det_msg += _('Size of the {0} database reduced from {1} to {2}.').format(
+                            title, human_readable(before[which]), human_readable(after[which]))
             if not question_dialog(self.gui, _('Success'),
                     _('Found no errors in your calibre library database.'
                         ' Do you want calibre to check if the files in your'
-                        ' library match the information in the database?')):
+                        ' library match the information in the database?'), det_msg=det_msg.strip()):
                 return
         else:
             return error_dialog(self.gui, _('Failed'),
@@ -684,9 +722,12 @@ class ChooseLibraryAction(InterfaceAction):
             d = CheckLibraryDialog(self.gui, m.db)
 
             if not d.do_exec():
-                info_dialog(self.gui, _('No problems found'),
-                        _('The files in your library match the information '
-                        'in the database.'), show=True)
+                if question_dialog(self.gui, _('No problems found'),
+                        _('The files in your library match the information in the database.\n\n'
+                          "Choose 'Open dialog' to change settings and run the check again."),
+                        yes_text=_('Open dialog'), yes_icon='gear.png', no_icon='ok.png',
+                        no_text=_('Finished')):
+                    d.exec()
         finally:
             self.gui.status_bar.clear_message()
 

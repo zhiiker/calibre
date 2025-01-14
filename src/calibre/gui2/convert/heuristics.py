@@ -4,11 +4,11 @@ __docformat__ = 'restructuredtext en'
 
 from qt.core import Qt
 
-from calibre.gui2 import gprefs
-from calibre.gui2.convert.heuristics_ui import Ui_Form
-from calibre.gui2.convert import Widget
-from calibre.utils.localization import localize_user_manual_link
 from calibre.ebooks.conversion.config import OPTIONS
+from calibre.gui2 import gprefs
+from calibre.gui2.convert import Widget
+from calibre.gui2.convert.heuristics_ui import Ui_Form
+from calibre.utils.localization import localize_user_manual_link
 
 
 class HeuristicsWidget(Widget, Ui_Form):
@@ -16,7 +16,7 @@ class HeuristicsWidget(Widget, Ui_Form):
     TITLE = _('Heuristic\nprocessing')
     HELP  = _('Modify the document text and structure using common patterns.')
     COMMIT_NAME = 'heuristics'
-    ICON = I('heuristics.png')
+    ICON = 'heuristics.png'
 
     def __init__(self, parent, get_option, get_help, db=None, book_id=None):
         Widget.__init__(self, parent, OPTIONS['pipe']['heuristics'])
@@ -97,8 +97,7 @@ class HeuristicsWidget(Widget, Ui_Form):
         gprefs['replace_scene_breaks_history'] = rssb_history
 
     def enable_heuristics(self, state):
-        state = state == Qt.CheckState.Checked
-        self.heuristic_options.setEnabled(state)
+        self.heuristic_options.setEnabled(self.opt_enable_heuristics.isChecked())
 
     def enable_unwrap(self, state):
         if state == Qt.CheckState.Checked:

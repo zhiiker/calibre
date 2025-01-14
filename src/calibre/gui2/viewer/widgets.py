@@ -3,12 +3,11 @@
 
 import re
 
-from qt.core import (
-    QAction, QFont, QFontMetrics, QStyle, QStyledItemDelegate, Qt, pyqtSignal, QPalette
-)
+from qt.core import QAction, QFont, QFontMetrics, QPalette, QStyle, QStyledItemDelegate, Qt, pyqtSignal
 
 from calibre.gui2 import QT_HIDDEN_CLEAR_ACTION
 from calibre.gui2.widgets2 import HistoryComboBox
+from calibre.utils.localization import _
 
 
 class ResultsDelegate(QStyledItemDelegate):  # {{{
@@ -115,7 +114,7 @@ class SearchBox(HistoryComboBox):  # {{{
     cleared = pyqtSignal()
 
     def __init__(self, parent=None):
-        HistoryComboBox.__init__(self, parent)
+        HistoryComboBox.__init__(self, parent, strip_completion_entries=False)
         self.lineEdit().setPlaceholderText(_('Search'))
         self.lineEdit().setClearButtonEnabled(True)
         ac = self.lineEdit().findChild(QAction, QT_HIDDEN_CLEAR_ACTION)

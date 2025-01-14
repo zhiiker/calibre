@@ -7,15 +7,14 @@ __docformat__ = 'restructuredtext en'
 
 import os
 
-from qt.core import Qt, QVBoxLayout, QFormLayout, QDialog
+from qt.core import QDialog, QFormLayout, QInputDialog, Qt, QVBoxLayout
 
-from calibre.gui2.preferences import ConfigWidgetBase, test_widget, \
-    CommaSeparatedList, AbortCommit
-from calibre.gui2.preferences.adding_ui import Ui_Form
-from calibre.utils.config import prefs
-from calibre.gui2.widgets import FilenamePattern
+from calibre.gui2 import choose_dir, error_dialog, gprefs, question_dialog
 from calibre.gui2.auto_add import AUTO_ADDED
-from calibre.gui2 import gprefs, choose_dir, error_dialog, question_dialog
+from calibre.gui2.preferences import AbortCommit, CommaSeparatedList, ConfigWidgetBase, test_widget
+from calibre.gui2.preferences.adding_ui import Ui_Form
+from calibre.gui2.widgets import FilenamePattern
+from calibre.utils.config import prefs
 
 
 class ConfigWidget(ConfigWidgetBase, Ui_Form):
@@ -58,6 +57,7 @@ class ConfigWidget(ConfigWidgetBase, Ui_Form):
         self.add_filter_rules_button.clicked.connect(self.change_add_filter_rules)
         self.tabWidget.setCurrentIndex(0)
         self.actions_tab.layout().setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+        self.ignore_another_button.clicked.connect(self.add_another_ignored_format)
 
     def change_tag_map_rules(self):
         from calibre.gui2.tag_mapper import RulesDialog
@@ -114,9 +114,12 @@ class ConfigWidget(ConfigWidgetBase, Ui_Form):
             fmts = gprefs.defaults['blocked_auto_formats']
         else:
             fmts = gprefs['blocked_auto_formats']
+        self.set_blocked_auto_formats(set(fmts))
+
+    def set_blocked_auto_formats(self, fmts):
+        exts = set(AUTO_ADDED) | set(fmts)
         viewer = self.opt_blocked_auto_formats
         viewer.blockSignals(True)
-        exts = set(AUTO_ADDED)
         viewer.clear()
         for ext in sorted(exts):
             viewer.addItem(ext)
@@ -125,6 +128,19 @@ class ConfigWidget(ConfigWidgetBase, Ui_Form):
             item.setCheckState(Qt.CheckState.Checked if
                     ext in fmts else Qt.CheckState.Unchecked)
         viewer.blockSignals(False)
+
+    def add_another_ignored_format(self):
+        fmt, ok = QInputDialog.getText(self, _('Add a file extension to ignore'), _('The file extension to ignore:'))
+        if ok:
+            fmt = fmt.lower()
+            viewer = self.opt_blocked_auto_formats
+            existing = set(self.current_blocked_auto_formats)
+            existing.add(fmt)
+            self.set_blocked_auto_formats(existing)
+            for i in range(viewer.count()):
+                if viewer.item(i).text() == fmt:
+                    viewer.scrollToItem(viewer.item(i))
+                    break
 
     @property
     def current_blocked_auto_formats(self):

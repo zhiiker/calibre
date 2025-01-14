@@ -5,7 +5,7 @@ __license__ = 'GPL v3'
 __copyright__ = '2013, Kovid Goyal <kovid at kovidgoyal.net>'
 
 import textwrap
-from collections import OrderedDict, Counter
+from collections import Counter, OrderedDict
 
 from calibre.ebooks.docx.block_styles import ParagraphStyle, inherit, twips
 from calibre.ebooks.docx.char_styles import RunStyle
@@ -458,8 +458,7 @@ class Styles:
             /* In word headings only have bold font if explicitly specified,
                 similarly the font size is the body font size, unless explicitly set. */
             h1, h2, h3, h4, h5, h6 { font-weight: normal; font-size: 1rem }
-            /* Setting padding-left to zero breaks rendering of lists, so we only set the other values to zero and leave padding-left for the user-agent */
-            ul, ol { margin: 0; padding-top: 0; padding-bottom: 0; padding-right: 0 }
+            ul, ol { margin: 0; padding: 0; padding-inline-start: 0; padding-inline-end: 0; margin-block-start: 0; margin-block-end: 0 }
 
             /* The word hyperlink styling will set text-decoration to underline if needed */
             a { text-decoration: none }

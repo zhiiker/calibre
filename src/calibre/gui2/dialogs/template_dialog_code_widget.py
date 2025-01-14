@@ -7,10 +7,7 @@ Based on classes in calibre.gui2.tweak_book.editor
 License: GPLv3 Copyright: 2021, Kovid Goyal <kovid at kovidgoyal.net>
 '''
 
-from qt.core import (
-    QFont, QPainter, QPalette, QPlainTextEdit, QRect, Qt, QTextEdit,
-    QTextFormat, QTextCursor
-)
+from qt.core import QFont, QPainter, QPalette, QPlainTextEdit, QRect, Qt, QTextCursor, QTextEdit, QTextFormat
 
 from calibre.gui2.tweak_book.editor.text import LineNumbers
 from calibre.gui2.tweak_book.editor.themes import get_theme, theme_color
@@ -61,8 +58,8 @@ class CodeEditor(QPlainTextEdit):
 
     def line_number_area_width(self):
         # get largest width of digits
-        w = self.fontMetrics()
-        self.number_width = max(map(lambda x:w.width(str(x)), range(10)))
+        fm = self.fontMetrics()
+        self.number_width = max(map(lambda x:fm.horizontalAdvance(str(x)), range(10)))
         digits = 1
         limit = max(1, self.blockCount())
         while limit >= 10:
@@ -181,7 +178,7 @@ class CodeEditor(QPlainTextEdit):
                 txt = blk.text()
                 pos = blk.position()
                 curs.setPosition(pos)
-                curs.setPosition(pos+len(txt), QTextCursor.KeepAnchor)
+                curs.setPosition(pos+len(txt), QTextCursor.MoveMode.KeepAnchor)
                 return txt
 
             # Check if there is a selection. If not then only Shift-Tab is valid
@@ -213,9 +210,8 @@ class CodeEditor(QPlainTextEdit):
                     end_position += 1
             # Restore the selection, adjusted for the added or deleted tabs
             cursor.setPosition(start_position)
-            cursor.setPosition(end_position, QTextCursor.KeepAnchor)
+            cursor.setPosition(end_position, QTextCursor.MoveMode.KeepAnchor)
             self.setTextCursor(cursor)
             ev.accept()
             return
         QPlainTextEdit.keyPressEvent(self, ev)
-

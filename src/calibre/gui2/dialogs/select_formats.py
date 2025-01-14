@@ -6,8 +6,7 @@ __copyright__ = '2009, Kovid Goyal <kovid@kovidgoyal.net>'
 __docformat__ = 'restructuredtext en'
 
 
-from qt.core import QVBoxLayout, QDialog, QLabel, QDialogButtonBox, Qt, \
-        QAbstractListModel, QListView, QSize, QApplication, QAbstractItemView
+from qt.core import QAbstractItemView, QAbstractListModel, QApplication, QDialog, QDialogButtonBox, QLabel, QListView, QSize, Qt, QVBoxLayout
 
 from calibre.gui2 import file_icon_provider
 
@@ -28,12 +27,23 @@ class Formats(QAbstractListModel):
         if role == Qt.ItemDataRole.DisplayRole:
             fmt = self.fmts[row]
             count = self.counts[fmt]
-            return ('%s [%d]'%(fmt.upper(), count))
+            if fmt == '..cover..':
+                fmt = _('Book cover')
+            else:
+                fmt = fmt.upper()
+            return f'{fmt} [{count}]'
         if role == Qt.ItemDataRole.DecorationRole:
-            return (self.fi.icon_from_ext(self.fmts[row].lower()))
+            fmt = self.fmts[row]
+            if fmt == '..cover..':
+                fmt = 'jpg'
+            return (self.fi.icon_from_ext(fmt.lower()))
         if role == Qt.ItemDataRole.ToolTipRole:
             fmt = self.fmts[row]
             count = self.counts[fmt]
+            if fmt == '..cover..':
+                if count == 1:
+                    return _('There is only one book with a cover')
+                return _('There are {} books with a cover').format(count)
             return _('There is one book with the {} format').format(fmt.upper()) if count == 1 else _(
                 'There are {count} books with the {fmt} format').format(
                                 count=count, fmt=fmt.upper())
@@ -62,11 +72,7 @@ class SelectFormats(QDialog):
         self.fview.doubleClicked.connect(self.double_clicked,
                 type=Qt.ConnectionType.QueuedConnection)
         if exclude:
-            if QApplication.instance().is_dark_theme:
-                sheet = 'background-color: #DAA520; color: black'
-            else:
-                sheet = 'background-color: #fae7b5'
-            self.fview.setStyleSheet('QListView { %s }' % sheet)
+            self.fview.setStyleSheet(f'QListView {{ background-color: {QApplication.instance().emphasis_window_background_color} }}')
         self._l.addWidget(self.fview)
         self.fview.setModel(self.formats)
         self.fview.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection if single else

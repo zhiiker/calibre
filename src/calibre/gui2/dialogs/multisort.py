@@ -2,10 +2,7 @@
 # License: GPL v3 Copyright: 2021, Kovid Goyal <kovid at kovidgoyal.net>
 
 
-from qt.core import (
-    QAbstractItemView, QDialogButtonBox, QInputDialog, QLabel, QListWidget,
-    QListWidgetItem, QMenu, QSize, Qt, QVBoxLayout
-)
+from qt.core import QAbstractItemView, QDialogButtonBox, QInputDialog, QLabel, QListWidget, QListWidgetItem, QMenu, QSize, Qt, QVBoxLayout
 
 from calibre import prepare_string_for_xml
 from calibre.gui2 import error_dialog
@@ -89,8 +86,7 @@ class ChooseMultiSort(Dialog):
         self.column_list.sortItems()
 
     def item_double_clicked(self, item):
-        cs = item.checkState()
-        item.setCheckState(Qt.CheckState.Checked if cs == Qt.CheckState.Unchecked else Qt.CheckState.Unchecked)
+        item.setCheckState(Qt.CheckState.Checked if item.checkState() == Qt.CheckState.Unchecked else Qt.CheckState.Unchecked)
 
     def current_changed(self):
         self.update_order_label()
@@ -144,12 +140,20 @@ class ChooseMultiSort(Dialog):
         spec = self.current_sort_spec
         if not spec:
             return self.no_column_selected_error()
-        name, ok = QInputDialog.getText(self, _('Choose name'),
-                _('Choose a name for these settings'))
-        if ok:
-            q = self.saved_specs
-            q[name] = spec
-            self.saved_specs = q
+        d = QInputDialog(self)
+        d.setComboBoxEditable(True)
+        d.setComboBoxItems(sorted(self.saved_specs.keys(), key=primary_sort_key))
+        d.setWindowTitle(_('Choose name'))
+        d.setLabelText(_('Choose a name for these settings'))
+        if d.exec():
+            name = d.textValue()
+            if name:
+                q = self.saved_specs
+                q[name] = spec
+                self.saved_specs = q
+            else:
+                error_dialog(self, _('No name provided'), _(
+                    'You must provide a name for the settings'), show=True)
 
     def populate_load_menu(self):
         m = self.load_menu

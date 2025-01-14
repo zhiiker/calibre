@@ -8,25 +8,19 @@ driver. It is intended to be subclassed with the relevant parts implemented
 for a particular device.
 '''
 
-import os, time, json, shutil
+import json
+import os
+import shutil
 from itertools import cycle
 
-from calibre.constants import numeric_version, ismacos
-from calibre import prints, isbytestring, fsync
-from calibre.constants import filesystem_encoding, DEBUG
+from calibre import fsync, isbytestring, prints
+from calibre.constants import filesystem_encoding, ismacos, numeric_version
+from calibre.devices.usbms.books import Book, BookList
 from calibre.devices.usbms.cli import CLI
 from calibre.devices.usbms.device import Device
-from calibre.devices.usbms.books import BookList, Book
 from calibre.ebooks.metadata.book.json_codec import JsonCodec
+from calibre.prints import debug_print
 from polyglot.builtins import itervalues, string_or_bytes
-
-
-def debug_print(*args, **kw):
-    base_time = getattr(debug_print, 'base_time', None)
-    if base_time is None:
-        debug_print.base_time = base_time = time.monotonic()
-    if DEBUG:
-        prints('DEBUG: %6.1f'%(time.monotonic()-base_time), *args, **kw)
 
 
 def safe_walk(top, topdown=True, onerror=None, followlinks=False, maxdepth=128):
@@ -98,8 +92,9 @@ class USBMS(CLI, Device):
     SCAN_FROM_ROOT = False
 
     def _update_driveinfo_record(self, dinfo, prefix, location_code, name=None):
-        from calibre.utils.date import now, isoformat
         import uuid
+
+        from calibre.utils.date import isoformat, now
         if not isinstance(dinfo, dict):
             dinfo = {}
         if dinfo.get('device_store_uuid', None) is None:
@@ -118,7 +113,7 @@ class USBMS(CLI, Device):
     def _update_driveinfo_file(self, prefix, location_code, name=None):
         from calibre.utils.config import from_json, to_json
         if os.path.exists(os.path.join(prefix, self.DRIVEINFO)):
-            with lopen(os.path.join(prefix, self.DRIVEINFO), 'rb') as f:
+            with open(os.path.join(prefix, self.DRIVEINFO), 'rb') as f:
                 try:
                     driveinfo = json.loads(f.read(), object_hook=from_json)
                 except:
@@ -128,7 +123,7 @@ class USBMS(CLI, Device):
             data = json.dumps(driveinfo, default=to_json)
             if not isinstance(data, bytes):
                 data = data.encode('utf-8')
-            with lopen(os.path.join(prefix, self.DRIVEINFO), 'wb') as f:
+            with open(os.path.join(prefix, self.DRIVEINFO), 'wb') as f:
                 f.write(data)
                 fsync(f)
         else:
@@ -136,7 +131,7 @@ class USBMS(CLI, Device):
             data = json.dumps(driveinfo, default=to_json)
             if not isinstance(data, bytes):
                 data = data.encode('utf-8')
-            with lopen(os.path.join(prefix, self.DRIVEINFO), 'wb') as f:
+            with open(os.path.join(prefix, self.DRIVEINFO), 'wb') as f:
                 f.write(data)
                 fsync(f)
         return driveinfo
@@ -239,6 +234,9 @@ class USBMS(CLI, Device):
 
         def update_booklist(filename, path, prefix):
             changed = False
+            # Ignore AppleDouble files
+            if filename.startswith("._"):
+                return False
             if path_to_ext(filename) in all_formats and self.is_allowed_book_file(filename, path, prefix):
                 try:
                     lpath = os.path.join(path, filename).partition(self.normalize_path(prefix))[2]
@@ -460,7 +458,7 @@ class USBMS(CLI, Device):
                     isinstance(booklists[listid], self.booklist_class)):
                 if not os.path.exists(prefix):
                     os.makedirs(self.normalize_path(prefix))
-                with lopen(self.normalize_path(os.path.join(prefix, self.METADATA_CACHE)), 'wb') as f:
+                with open(self.normalize_path(os.path.join(prefix, self.METADATA_CACHE)), 'wb') as f:
                     json_codec.encode_to_file(f, booklists[listid])
                     fsync(f)
         write_prefix(self._main_prefix, 0)
@@ -506,7 +504,7 @@ class USBMS(CLI, Device):
         cache_file = cls.normalize_path(os.path.join(prefix, name))
         if os.access(cache_file, os.R_OK):
             try:
-                with lopen(cache_file, 'rb') as f:
+                with open(cache_file, 'rb') as f:
                     json_codec.decode_from_file(f, bl, cls.book_class, prefix)
             except:
                 import traceback
@@ -534,8 +532,8 @@ class USBMS(CLI, Device):
 
     @classmethod
     def metadata_from_formats(cls, fmts):
-        from calibre.ebooks.metadata.meta import metadata_from_formats
         from calibre.customize.ui import quick_metadata
+        from calibre.ebooks.metadata.meta import metadata_from_formats
         with quick_metadata:
             return metadata_from_formats(fmts, force_read_metadata=True,
                                          pattern=cls.build_template_regexp())

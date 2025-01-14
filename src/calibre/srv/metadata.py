@@ -3,23 +3,25 @@
 
 
 import os
-from copy import copy
 from collections import namedtuple
+from copy import copy
 from datetime import datetime, time
 from functools import partial
 from threading import Lock
 
 from calibre.constants import config_dir
-from calibre.db.categories import Tag
+from calibre.db.categories import Tag, category_display_order
+from calibre.db.constants import DATA_FILE_PATTERN
 from calibre.ebooks.metadata.sources.identify import urls_from_identifiers
-from calibre.utils.date import isoformat, UNDEFINED_DATE, local_tz
-from calibre.utils.config import tweaks
-from calibre.utils.formatter import EvalFormatter
-from calibre.utils.file_type_icons import EXT_MAP
-from calibre.utils.icu import collation_order_for_partitioning
-from calibre.utils.localization import calibre_langcode_to_name
 from calibre.library.comments import comments_to_html, markdown
 from calibre.library.field_metadata import category_icon_map
+from calibre.utils.config import tweaks
+from calibre.utils.date import UNDEFINED_DATE, isoformat, local_tz
+from calibre.utils.file_type_icons import EXT_MAP
+from calibre.utils.formatter import EvalFormatter
+from calibre.utils.icu import collation_order_for_partitioning
+from calibre.utils.icu import upper as icu_upper
+from calibre.utils.localization import _, calibre_langcode_to_name
 from polyglot.builtins import iteritems, itervalues
 from polyglot.urllib import quote
 
@@ -63,6 +65,12 @@ def add_field(field, db, book_id, ans, field_metadata):
             ans[field] = val
 
 
+def encode_stat_result(s: os.stat_result) -> dict[str, int]:
+    return {
+        'size': s.st_size, 'mtime_ns': s.st_mtime_ns,
+    }
+
+
 def book_as_json(db, book_id):
     db = db.new_api
     with db.safe_read_lock:
@@ -87,6 +95,15 @@ def book_as_json(db, book_id):
         langs = ans.get('languages')
         if langs:
             ans['lang_names'] = {l:calibre_langcode_to_name(l) for l in langs}
+        link_maps = db.get_all_link_maps_for_book(book_id)
+        if link_maps:
+            ans['link_maps'] = link_maps
+        x = db.items_with_notes_in_book(book_id)
+        if x:
+            ans['items_with_notes'] = {field: {v: k for k, v in items.items()} for field, items in x.items()}
+        data_files = db.list_extra_files(book_id, use_cache=True, pattern=DATA_FILE_PATTERN)
+        if data_files:
+            ans['data_files'] = {e.relpath: encode_stat_result(e.stat_result) for e in data_files}
     return ans
 
 
@@ -216,16 +233,22 @@ def categories_settings(query, db, gst_container=GroupedSearchTerms):
         hidden_categories, query.get('hide_empty_categories') == 'yes')
 
 
-def create_toplevel_tree(category_data, items, field_metadata, opts):
+def create_toplevel_tree(category_data, items, field_metadata, opts, db):
     # Create the basic tree, containing all top level categories , user
     # categories and grouped search terms
     last_category_node, category_node_map, root = None, {}, {'id':None, 'children':[]}
     node_id_map = {}
     category_nodes, recount_nodes = [], []
-    order = tweaks['tag_browser_category_order']
-    defvalue = order.get('*', 100)
-    categories = [category for category in field_metadata if category in category_data]
-    scats = sorted(categories, key=lambda x: order.get(x, defvalue))
+    # User categories are listed in category_display_order using their prefix.
+    # In other words, both @AAA.BB and @AAA.CC appear once as @AAA. We need to
+    # process the category list to get the "real" user categories.
+    scats_t = category_display_order(db.pref('tag_browser_category_order', ()), tuple(category_data.keys()))
+    scats = []
+    for category in scats_t:
+        if not category.startswith('@'):
+            scats.append(category)
+        else:
+            scats.extend(sorted(c for c in category_data.keys() if c == category or c.startswith(category+'.')))
 
     for category in scats:
         is_user_category = category.startswith('@')
@@ -361,6 +384,9 @@ def process_category_node(
         opts, tag_map, hierarchical_tags, node_to_tag_map, collapse_nodes,
         intermediate_nodes, hierarchical_items):
     category = items[category_node['id']]['category']
+    if category not in category_data:
+        # This can happen for user categories that are hierarchical and missing their parent.
+        return
     category_items = category_data[category]
     cat_len = len(category_items)
     if cat_len <= 0:
@@ -522,7 +548,7 @@ def fillout_tree(root, items, node_id_map, category_nodes, category_data, field_
 def render_categories(opts, db, category_data):
     items = {}
     with db.safe_read_lock:
-        root, node_id_map, category_nodes, recount_nodes = create_toplevel_tree(category_data, items, db.field_metadata, opts)
+        root, node_id_map, category_nodes, recount_nodes = create_toplevel_tree(category_data, items, db.field_metadata, opts, db)
         fillout_tree(root, items, node_id_map, category_nodes, category_data, db.field_metadata, opts, db.fields['rating'].book_value_map)
     for node in recount_nodes:
         item = items[node['id']]

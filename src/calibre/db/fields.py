@@ -6,19 +6,22 @@ __copyright__ = '2011, Kovid Goyal <kovid@kovidgoyal.net>'
 __docformat__ = 'restructuredtext en'
 
 import sys
-from threading import Lock
-from collections import defaultdict, Counter
+from collections import Counter, defaultdict
 from functools import partial
+from threading import Lock
+from typing import Iterable
 
-from calibre.db.tables import ONE_ONE, MANY_ONE, MANY_MANY, null
+from calibre.db.tables import MANY_MANY, MANY_ONE, ONE_ONE, null
+from calibre.db.utils import atof, force_to_bool
 from calibre.db.write import Writer
-from calibre.db.utils import force_to_bool, atof
-from calibre.ebooks.metadata import title_sort, author_to_author_sort, rating_to_stars
+from calibre.ebooks.metadata import author_to_author_sort, rating_to_stars, title_sort
 from calibre.utils.config_base import tweaks
-from calibre.utils.icu import sort_key
 from calibre.utils.date import UNDEFINED_DATE, clean_date_for_sort, parse_date
+from calibre.utils.icu import sort_key
 from calibre.utils.localization import calibre_langcode_to_name
 from polyglot.builtins import iteritems
+
+rendering_composite_name = '__rendering_composite__'
 
 
 def bool_sort_key(bools_are_tristate):
@@ -44,7 +47,8 @@ def numeric_sort_key(defval, x):
     return x if type(x) in (int, float) else defval
 
 
-IDENTITY = lambda x: x
+def IDENTITY(x):
+    return x
 
 
 class InvalidLinkTable(Exception):
@@ -296,7 +300,8 @@ class CompositeField(OneToOneField):
         ans = formatter.safe_format(
             self.metadata['display']['composite_template'], mi, _('TEMPLATE ERROR'),
             mi, column_name=self._composite_name, template_cache=template_cache,
-            template_functions=self.get_template_functions()).strip()
+            template_functions=self.get_template_functions(),
+            global_vars={rendering_composite_name:'1'}).strip()
         with self._lock:
             self._render_cache[book_id] = ans
         return ans
@@ -341,9 +346,16 @@ class CompositeField(OneToOneField):
         for book_id in candidates:
             vals = self.get_value_with_cache(book_id, get_metadata)
             vals = (vv.strip() for vv in vals.split(splitter)) if splitter else (vals,)
+            found = False
             for v in vals:
                 if v:
                     val_map[v].add(book_id)
+                    found = True
+            if not found:
+                # Convert columns with no value to None to ensure #x:false
+                # searches work. We do it outside the loop to avoid generating
+                # None for is_multiple columns containing text like "a,,,b".
+                val_map[None].add(book_id)
         yield from iteritems(val_map)
 
     def iter_counts(self, candidates, get_metadata=None):
@@ -520,6 +532,9 @@ class ManyToOneField(Field):
         except KeyError:
             raise InvalidLinkTable(self.name)
 
+    def item_ids_for_names(self, db, item_names: Iterable[str], case_sensitive: bool = False) -> dict[str, int]:
+        return self.table.item_ids_for_names(db, item_names, case_sensitive)
+
 
 class ManyToManyField(Field):
 
@@ -528,6 +543,9 @@ class ManyToManyField(Field):
 
     def __init__(self, *args, **kwargs):
         Field.__init__(self, *args, **kwargs)
+
+    def item_ids_for_names(self, db, item_names: Iterable[str], case_sensitive: bool = False) -> dict[str, int]:
+        return self.table.item_ids_for_names(db, item_names, case_sensitive)
 
     def for_book(self, book_id, default_value=None):
         ids = self.table.book_col_map.get(book_id, ())
@@ -630,7 +648,7 @@ class AuthorsField(ManyToManyField):
         return {
             'name': self.table.id_map[author_id],
             'sort': self.table.asort_map[author_id],
-            'link': self.table.alink_map[author_id],
+            'link': self.table.link_map[author_id],
         }
 
     def category_sort_value(self, item_id, book_ids, lang_map):

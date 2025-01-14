@@ -63,7 +63,8 @@
 __author__  = 'sengian <sengian1 at gmail.com>'
 __docformat__ = 'restructuredtext en'
 
-import re, string
+import re
+import string
 
 from calibre.utils.mreplace import MReplace
 
@@ -2167,7 +2168,6 @@ utf8enc2latex_mapping = {  # {{{
     # Items from simple list
     '\u0106': "{\\a\\'C}",
     '\u0408': '{\\CYRJE}',
-    '\u20ac': '{\\texteuro}',
     '\u2191': '{\\textuparrow}',
     '\u0493': '{\\cyrghcrs}',
     '\u2116': '{\\textnumero}',

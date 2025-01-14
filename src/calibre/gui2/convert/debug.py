@@ -7,16 +7,16 @@ __docformat__ = 'restructuredtext en'
 
 import os
 
-from calibre.gui2.convert.debug_ui import Ui_Form
-from calibre.gui2.convert import Widget
-from calibre.gui2 import error_dialog, choose_dir
 from calibre.ebooks.conversion.config import OPTIONS
+from calibre.gui2 import choose_dir, error_dialog
+from calibre.gui2.convert import Widget
+from calibre.gui2.convert.debug_ui import Ui_Form
 
 
 class DebugWidget(Widget, Ui_Form):
 
     TITLE = _('Debug')
-    ICON  = I('debug.png')
+    ICON  = 'debug.png'
     HELP  = _('Debug the conversion process.')
     COMMIT_NAME = 'debug'
 

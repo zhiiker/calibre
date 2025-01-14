@@ -5,14 +5,13 @@ __docformat__ = 'restructuredtext en'
 import os
 import struct
 import zlib
-
 from collections import OrderedDict
 
 from calibre import CurrentDir
-from calibre.ebooks.pdb.formatreader import FormatReader
 from calibre.ebooks.compression.palmdoc import decompress_doc
+from calibre.ebooks.pdb.formatreader import FormatReader
+from calibre.utils.img import Canvas, image_from_data, save_cover_data_to
 from calibre.utils.imghdr import identify
-from calibre.utils.img import save_cover_data_to, Canvas, image_from_data
 from polyglot.builtins import codepoint_to_chr
 
 DATATYPE_PHTML = 0
@@ -412,7 +411,7 @@ class Reader(FormatReader):
                         for col in row:
                             if col not in images:
                                 raise Exception('Image with uid: %s missing.' % col)
-                            w, h = identify(lopen('%s.jpg' % col, 'rb'))[1:]
+                            w, h = identify(open('%s.jpg' % col, 'rb'))[1:]
                             row_width += w
                             if col_height < h:
                                 col_height = h
@@ -427,14 +426,14 @@ class Reader(FormatReader):
                             x_off = 0
                             largest_height = 0
                             for col in row:
-                                im = image_from_data(lopen('%s.jpg' % col, 'rb').read())
+                                im = image_from_data(open('%s.jpg' % col, 'rb').read())
                                 canvas.compose(im, x_off, y_off)
                                 w, h = im.width(), im.height()
                                 x_off += w
                                 if largest_height < h:
                                     largest_height = h
                             y_off += largest_height
-                    with lopen('%s.jpg' % uid) as out:
+                    with open('%s.jpg' % uid) as out:
                         out.write(canvas.export(compression_quality=70))
                     self.log.debug(f'Wrote composite image with uid {uid} to images/{uid}.jpg')
                 except Exception as e:

@@ -10,12 +10,14 @@
 #                                                                       #
 #                                                                       #
 #########################################################################
-import os, re
+import os
+import re
 
 from calibre.ebooks.rtf2xml import copy
-from calibre.utils.mreplace import MReplace
 from calibre.ptempfile import better_mktemp
+from calibre.utils.mreplace import MReplace
 from polyglot.builtins import codepoint_to_chr
+
 from . import open_for_read, open_for_write
 
 
@@ -62,7 +64,8 @@ class Tokenize:
             return token
         # change scope out
         elif token == r'\}':
-            self.__uc_value.pop()
+            if self.__uc_value:
+                self.__uc_value.pop()
             self.__reini_utf8_counters()
             return token
         # add a uc control
@@ -135,7 +138,6 @@ class Tokenize:
             "&": "&amp;",
             "<": "&lt;",
             ">": "&gt;",
-            "\\~": "\\~ ",
             "\\_": "\\_ ",
             "\\:": "\\: ",
             "\\-": "\\- ",

@@ -12,6 +12,7 @@ from calibre.constants import cache_dir
 from calibre.ptempfile import TemporaryDirectory
 from calibre.utils.localization import lang_as_iso639_1
 from calibre.utils.lock import ExclusiveFile
+from calibre.utils.resources import get_path as P
 from polyglot.builtins import iteritems
 from polyglot.functools import lru_cache
 
@@ -65,13 +66,16 @@ def extract_dicts(cache_path):
             tf = tarfile.open(dict_tarball)
         else:
             buf = BytesIO()
-            with lopen(dict_tarball, 'rb') as f:
+            with open(dict_tarball, 'rb') as f:
                 data = f.read()
             decompress(data, outfile=buf)
             buf.seek(0)
             tf = tarfile.TarFile(fileobj=buf)
         with tf:
-            tf.extractall(tdir)
+            try:
+                tf.extractall(tdir, filter='data')
+            except TypeError:
+                tf.extractall(tdir)
         with open(os.path.join(tdir, 'sha1sum'), 'wb') as f:
             f.write(expected_hash())
         dest = os.path.join(cache_path, 'f')

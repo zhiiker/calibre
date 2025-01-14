@@ -10,7 +10,8 @@
 #                                                                       #
 #                                                                       #
 #########################################################################
-import sys, re
+import re
+import sys
 
 
 class FieldStrings:
@@ -80,7 +81,7 @@ class FieldStrings:
         'INCLUDETEXT'   :       (self.__include_text_func, 'include-text-from-file'),
         'INDEX'         :       (self.__index_func, 'index'),
         'NOTEREF'       :       (self.__note_ref_func, 'reference-to-note'),
-        'PAGEREF'	: (self.__page_ref_func, 'reference-to-page'),
+        'PAGEREF'       :       (self.__page_ref_func, 'reference-to-page'),
         'REF'           :       (self.__ref_func, 'reference'),
         'ref'           :       (self.__ref_func, 'reference'),
         'SEQ'           :       (self.__sequence_func, 'numbering-sequence'),
@@ -139,7 +140,7 @@ class FieldStrings:
             'Ordinal'       :   'ordinal',
             'CardText'      :   'cardinal-text',
             'OrdText'       :   'ordinal-text',
-            'Hex'           :   'hexidecimal',
+            'Hex'           :   'hexadecimal',
             'DollarText'    :   'dollar-text',
             'Upper'         :   'upper-case',
             'Lower'         :   'lower-case',

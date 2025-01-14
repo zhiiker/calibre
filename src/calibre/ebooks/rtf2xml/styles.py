@@ -10,9 +10,12 @@
 #                                                                       #
 #                                                                       #
 #########################################################################
-import sys, os
-from calibre.ebooks.rtf2xml import copy, border_parse
+import os
+import sys
+
+from calibre.ebooks.rtf2xml import border_parse, copy
 from calibre.ptempfile import better_mktemp
+
 from . import open_for_read, open_for_write
 
 
@@ -121,7 +124,7 @@ class Styles:
         'list-simpi'    : 'list-simple',
         'list-conti'    : 'list-continue',
         'list-hang_'    : 'list-hang',
-        # 'list-tebef'    :	'list-text-before',
+        # 'list-tebef'    : 'list-text-before',
         # 'list-level'    : 'level',
         'list-id___'    : 'list-id',
         'list-start'    : 'list-start',

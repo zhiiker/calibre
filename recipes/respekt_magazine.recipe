@@ -7,11 +7,14 @@ __license__     = 'GNU General Public License v3 - http://www.gnu.org/copyleft/g
 __copyright__   = 'tomashnyk@gmail.com'
 
 import re
-from calibre.web.feeds.recipes import BasicNewsRecipe
-from calibre.ebooks.BeautifulSoup import BeautifulSoup
+
 # This imports the version bundled with Calibre
 import lxml
 from lxml.builder import E
+
+from calibre.ebooks.BeautifulSoup import BeautifulSoup
+from calibre.web.feeds.recipes import BasicNewsRecipe
+
 respekt_url = 'https://www.respekt.cz'
 
 
@@ -159,7 +162,7 @@ class respektRecipe(BasicNewsRecipe):
         for par in paragraphs[:-1]:
             prev = par.getprevious()
             # Do not indent after headings
-            if hasattr(prev,'tag') and not (prev.tag in ['h2','h3']):
+            if hasattr(prev,'tag') and prev.tag not in ['h2', 'h3']:
                 par.attrib['class']="indent_first_line"
         # Fix subtitle for Téma
         try:

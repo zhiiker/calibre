@@ -5,18 +5,27 @@ __license__   = 'GPL v3'
 __copyright__ = '2009, Kovid Goyal <kovid@kovidgoyal.net>'
 __docformat__ = 'restructuredtext en'
 
-import os, subprocess, hashlib, shutil, glob, stat, sys, time, json
+import glob
+import hashlib
+import json
+import os
+import shutil
+import stat
+import subprocess
+import sys
+import time
 from subprocess import check_call
-from tempfile import NamedTemporaryFile, mkdtemp, gettempdir
+from tempfile import NamedTemporaryFile, gettempdir, mkdtemp
 from zipfile import ZipFile
+
 from polyglot.builtins import iteritems
-from polyglot.urllib import urlopen, Request
+from polyglot.urllib import Request, urlopen
 
 if __name__ == '__main__':
     d = os.path.dirname
     sys.path.insert(0, d(d(os.path.abspath(__file__))))
 
-from setup import Command, __version__, installer_name, __appname__
+from setup import Command, __appname__, __version__, installer_names
 
 DOWNLOADS = '/srv/main/downloads'
 HTML2LRF = "calibre/ebooks/lrf/html/demo"
@@ -28,28 +37,15 @@ STAGING_DIR = '/root/staging'
 BACKUP_DIR = '/binaries'
 
 
-def installers(include_source=True):
-    installers = list(map(installer_name, ('dmg', 'msi', 'txz')))
-    installers.append(installer_name('txz', is64bit=True))
-    installers.append(installer_name('msi', is64bit=True))
-    if include_source:
-        installers.insert(0, f'dist/{__appname__}-{__version__}.tar.xz')
-    installers.append(
-        f'dist/{__appname__}-portable-installer-{__version__}.exe'
-    )
-    return installers
-
-
 def installer_description(fname):
     if fname.endswith('.tar.xz'):
         return 'Source code'
     if fname.endswith('.txz'):
-        bits = '32' if 'i686' in fname else '64'
-        return bits + 'bit Linux binary'
+        return ('ARM' if 'arm64' in fname else 'AMD') + ' 64-bit Linux binary'
     if fname.endswith('.msi'):
-        return 'Windows %sinstaller' % ('64bit ' if '64bit' in fname else '')
+        return 'Windows installer'
     if fname.endswith('.dmg'):
-        return 'OS X dmg'
+        return 'macOS dmg'
     if fname.endswith('.exe'):
         return 'Calibre Portable'
     return 'Unknown file'
@@ -59,7 +55,7 @@ def upload_signatures():
     tdir = mkdtemp()
     scp = ['scp']
     try:
-        for installer in installers():
+        for installer in installer_names():
             if not os.path.exists(installer):
                 continue
             sig = os.path.join(tdir, os.path.basename(installer + '.sig'))
@@ -92,13 +88,13 @@ class ReUpload(Command):  # {{{
 
     def pre_sub_commands(self, opts):
         opts.replace = True
-        exists = {x for x in installers() if os.path.exists(x)}
+        exists = {x for x in installer_names() if os.path.exists(x)}
         if not exists:
             print('There appear to be no installers!')
             raise SystemExit(1)
 
     def run(self, opts):
-        for x in installers():
+        for x in installer_names():
             if os.path.exists(x):
                 os.remove(x)
 
@@ -199,7 +195,7 @@ def upload_to_fosshub():
     else:
         raise SystemExit('No calibre project found')
 
-    files = set(installers())
+    files = set(installer_names())
     entries = []
     for fname in files:
         desc = installer_description(fname)
@@ -236,7 +232,7 @@ class UploadInstallers(Command):  # {{{
 
     def run(self, opts):
         # return upload_to_fosshub()
-        all_possible = set(installers())
+        all_possible = set(installer_names())
         available = set(glob.glob('dist/*'))
         files = {
             x: installer_description(x)
@@ -254,7 +250,7 @@ class UploadInstallers(Command):  # {{{
                 upload_signatures()
                 check_call('ssh code /apps/update-calibre-version.py'.split())
             # self.upload_to_sourceforge()
-            upload_to_fosshub()
+            # upload_to_fosshub()
             self.upload_to_github(opts.replace)
         finally:
             shutil.rmtree(tdir, ignore_errors=True)

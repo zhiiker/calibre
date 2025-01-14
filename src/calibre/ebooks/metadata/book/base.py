@@ -5,15 +5,17 @@ __license__   = 'GPL v3'
 __copyright__ = '2010, Kovid Goyal <kovid@kovidgoyal.net>'
 __docformat__ = 'restructuredtext en'
 
-import copy, traceback
+import copy
+import traceback
+from contextlib import suppress
 
 from calibre import prints
 from calibre.constants import DEBUG
-from calibre.ebooks.metadata.book import (SC_COPYABLE_FIELDS,
-        SC_FIELDS_COPY_NOT_NULL, STANDARD_METADATA_FIELDS,
-        TOP_LEVEL_IDENTIFIERS, ALL_METADATA_FIELDS)
+from calibre.ebooks.metadata.book import ALL_METADATA_FIELDS, SC_COPYABLE_FIELDS, SC_FIELDS_COPY_NOT_NULL, STANDARD_METADATA_FIELDS, TOP_LEVEL_IDENTIFIERS
 from calibre.library.field_metadata import FieldMetadata
+from calibre.utils.icu import lower as icu_lower
 from calibre.utils.icu import sort_key
+from calibre.utils.localization import ngettext
 from polyglot.builtins import iteritems, string_or_bytes
 
 # Special sets used to optimize the performance of getting and setting
@@ -26,8 +28,8 @@ def human_readable(size, precision=2):
     """ Convert a size in bytes into megabytes """
     ans = size/(1024*1024)
     if ans < 0.1:
-        return '<0.1MB'
-    return ('%.'+str(precision)+'f'+ 'MB') % ans
+        return '<0.1 MB'
+    return ('%.'+str(precision)+'f'+ ' MB') % ans
 
 
 NULL_VALUES = {
@@ -42,7 +44,7 @@ NULL_VALUES = {
                 'author_sort'  : _('Unknown'),
                 'title'        : _('Unknown'),
                 'user_categories' : {},
-                'author_link_map' : {},
+                'link_maps'    : {},
                 'language'     : 'und'
 }
 
@@ -54,8 +56,12 @@ def reset_field_metadata():
     field_metadata = FieldMetadata()
 
 
-ck = lambda typ: icu_lower(typ).strip().replace(':', '').replace(',', '')
-cv = lambda val: val.strip().replace(',', '|')
+def ck(typ):
+    return icu_lower(typ).strip().replace(':', '').replace(',', '')
+
+
+def cv(val):
+    return val.strip().replace(',', '|')
 
 
 class Metadata:
@@ -143,9 +149,7 @@ class Metadata:
         if field in _data['user_metadata']:
             d = _data['user_metadata'][field]
             val = d['#value#']
-            if d['datatype'] != 'composite':
-                return val
-            if val is None:
+            if val is None and d['datatype'] == 'composite':
                 d['#value#'] = 'RECURSIVE_COMPOSITE FIELD (Metadata) ' + field
                 val = d['#value#'] = self.formatter.safe_format(
                                             d['display']['composite_template'],
@@ -184,8 +188,9 @@ class Metadata:
                 langs = [val]
             _data['languages'] = langs
         elif field in _data['user_metadata']:
-            _data['user_metadata'][field]['#value#'] = val
-            _data['user_metadata'][field]['#extra#'] = extra
+            d = _data['user_metadata'][field]
+            d['#value#'] = val
+            d['#extra#'] = extra
         else:
             # You are allowed to stick arbitrary attributes onto this object as
             # long as they don't conflict with global or user metadata names
@@ -196,13 +201,26 @@ class Metadata:
         return iter(object.__getattribute__(self, '_data'))
 
     def has_key(self, key):
-        return key in object.__getattribute__(self, '_data')
+        return key in STANDARD_METADATA_FIELDS or key in object.__getattribute__(self, '_data')['user_metadata']
+
+    def _evaluate_all_composites(self):
+        custom_fields = object.__getattribute__(self, '_data')['user_metadata']
+        for field in custom_fields:
+            self._evaluate_composite(field)
+
+    def _evaluate_composite(self, field):
+        f = object.__getattribute__(self, '_data')['user_metadata'].get(field, None)
+        if f is not None:
+            if f['datatype'] == 'composite' and f['#value#'] is None:
+                self.get(field)
 
     def deepcopy(self, class_generator=lambda : Metadata(None)):
         ''' Do not use this method unless you know what you are doing, if you
         want to create a simple clone of this object, use :meth:`deepcopy_metadata`
         instead. Class_generator must be a function that returns an instance
         of Metadata or a subclass of it.'''
+        # We don't need to evaluate all the composites here because we
+        # are returning a "real" Metadata instance that has __get_attribute__.
         m = class_generator()
         if not isinstance(m, Metadata):
             return None
@@ -210,8 +228,15 @@ class Metadata:
         return m
 
     def deepcopy_metadata(self):
+        # We don't need to evaluate all the composites here because we
+        # are returning a "real" Metadata instance that has __get_attribute__.
         m = Metadata(None)
         object.__setattr__(m, '_data', copy.deepcopy(object.__getattribute__(self, '_data')))
+        # Also copy these two top-level attributes as they can appear in templates.
+        with suppress(AttributeError):
+            object.__setattr__(m, 'id', copy.copy(self.__getattribute__('id')))
+        with suppress(AttributeError):
+            object.__setattr__(m, 'has_cover', copy.copy(self.__getattribute__('has_cover')))
         return m
 
     def get(self, field, default=None):
@@ -221,6 +246,8 @@ class Metadata:
             return default
 
     def get_extra(self, field, default=None):
+        # Don't need to evaluate all composites because a composite can't have
+        # an extra value
         _data = object.__getattribute__(self, '_data')
         if field in _data['user_metadata']:
             try:
@@ -240,8 +267,7 @@ class Metadata:
         needed is large. Also, we don't want any manipulations of the returned
         dict to show up in the book.
         '''
-        ans = object.__getattribute__(self,
-            '_data')['identifiers']
+        ans = object.__getattribute__(self, '_data')['identifiers']
         if not ans:
             ans = {}
         return copy.deepcopy(ans)
@@ -266,16 +292,14 @@ class Metadata:
         typ, val = self._clean_identifier(typ, val)
         if not typ:
             return
-        identifiers = object.__getattribute__(self,
-            '_data')['identifiers']
+        identifiers = object.__getattribute__(self, '_data')['identifiers']
 
         identifiers.pop(typ, None)
         if val:
             identifiers[typ] = val
 
     def has_identifier(self, typ):
-        identifiers = object.__getattribute__(self,
-            '_data')['identifiers']
+        identifiers = object.__getattribute__(self, '_data')['identifiers']
         return typ in identifiers
 
     # field-oriented interface. Intended to be the same as in LibraryDatabase
@@ -366,6 +390,9 @@ class Metadata:
         return a dict containing all the custom field metadata associated with
         the book.
         '''
+        # Must evaluate all composites because we are returning a dict, not a
+        # Metadata instance
+        self._evaluate_all_composites()
         _data = object.__getattribute__(self, '_data')
         user_metadata = _data['user_metadata']
         if not make_copy:
@@ -381,9 +408,12 @@ class Metadata:
         None. field is the key name, not the label. Return a copy if requested,
         just in case the user wants to change values in the dict.
         '''
-        _data = object.__getattribute__(self, '_data')
-        _data = _data['user_metadata']
+        _data = object.__getattribute__(self, '_data')['user_metadata']
         if field in _data:
+            # Must evaluate the field because it might be a composite. It won't
+            # be evaluated on demand because we are returning its dict, not a
+            # Metadata instance
+            self._evaluate_composite(field)
             if make_copy:
                 return copy.deepcopy(_data[field])
             return _data[field]
@@ -490,7 +520,7 @@ class Metadata:
         '''
         def copy_not_none(dest, src, attr):
             v = getattr(src, attr, None)
-            if v not in (None, NULL_VALUES.get(attr, None)):
+            if v is not None and v != NULL_VALUES.get(attr, None):
                 setattr(dest, attr, copy.deepcopy(v))
 
         unknown = _('Unknown')
@@ -732,8 +762,8 @@ class Metadata:
         A string representation of this object, suitable for printing to
         console
         '''
-        from calibre.utils.date import isoformat
         from calibre.ebooks.metadata import authors_to_string
+        from calibre.utils.date import isoformat
         ans = []
 
         def fmt(x, y):

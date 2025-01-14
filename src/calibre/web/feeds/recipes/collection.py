@@ -5,19 +5,26 @@ __license__   = 'GPL v3'
 __copyright__ = '2009, Kovid Goyal <kovid@kovidgoyal.net>'
 __docformat__ = 'restructuredtext en'
 
-import os, calendar, zipfile
-from threading import RLock
+import calendar
+import json
+import os
+import zipfile
 from datetime import timedelta
+from threading import RLock
+from typing import Dict, NamedTuple, Optional, Sequence
 
 from lxml import etree
 from lxml.builder import ElementMaker
 
 from calibre import force_unicode
-from calibre.utils.xml_parse import safe_xml_fromstring
 from calibre.constants import numeric_version
+from calibre.utils.date import EPOCH, UNDEFINED_DATE, isoformat, local_tz, utcnow
+from calibre.utils.date import now as nowf
 from calibre.utils.iso8601 import parse_iso8601
-from calibre.utils.date import now as nowf, utcnow, local_tz, isoformat, EPOCH, UNDEFINED_DATE
+from calibre.utils.localization import _
 from calibre.utils.recycle_bin import delete_file
+from calibre.utils.resources import get_path as P
+from calibre.utils.xml_parse import safe_xml_fromstring
 from polyglot.builtins import iteritems
 
 NS = 'http://calibre-ebook.com/recipe_collection'
@@ -38,37 +45,49 @@ def iterate_over_builtin_recipe_files():
         yield rid, f
 
 
-def serialize_recipe(urn, recipe_class):
+def normalize_language(x: str) -> str:
+    lang, sep, country = x.replace('-', '_').partition('_')
+    if sep == '_':
+        x = f'{lang.lower()}{sep}{country.upper()}'
+    else:
+        x = lang.lower()
+    return x
 
-    def attr(n, d):
+
+def serialize_recipe(urn, recipe_class):
+    from xml.sax.saxutils import quoteattr
+
+
+    def attr(n, d, normalize=lambda x: x):
         ans = getattr(recipe_class, n, d)
         if isinstance(ans, bytes):
             ans = ans.decode('utf-8', 'replace')
-        return ans
+        return quoteattr(normalize(ans))
 
     default_author = _('You') if urn.startswith('custom:') else _('Unknown')
-    ns = attr('needs_subscription', False)
+    ns = getattr(recipe_class, 'needs_subscription', False)
     if not ns:
         ns = 'no'
     if ns is True:
         ns = 'yes'
-    return E.recipe({
-        'id'                 : str(urn),
+    options = ''
+    rso = getattr(recipe_class, 'recipe_specific_options', None)
+    if rso:
+        options = f' options={quoteattr(json.dumps(rso))}'
+    return ('  <recipe id={id} title={title} author={author} language={language}'
+            ' needs_subscription={needs_subscription} description={description}{options}/>').format(**{
+        'id'                 : quoteattr(str(urn)),
         'title'              : attr('title', _('Unknown')),
         'author'             : attr('__author__', default_author),
-        'language'           : attr('language', 'und'),
-        'needs_subscription' : ns,
-        'description'        : attr('description', '')
+        'language'           : attr('language', 'und', normalize_language),
+        'needs_subscription' : quoteattr(ns),
+        'description'        : attr('description', ''),
+        'options'            : options,
         })
 
 
 def serialize_collection(mapping_of_recipe_classes):
-    collection = E.recipe_collection()
-    '''for u, x in mapping_of_recipe_classes.items():
-        print 11111, u, repr(x.title)
-        if isinstance(x.title, bytes):
-            x.title.decode('ascii')
-    '''
+    collection = []
     for urn in sorted(mapping_of_recipe_classes.keys(),
             key=lambda key: force_unicode(
                 getattr(mapping_of_recipe_classes[key], 'title', 'zzz'),
@@ -80,9 +99,11 @@ def serialize_collection(mapping_of_recipe_classes):
             traceback.print_exc()
             continue
         collection.append(recipe)
-    collection.set('count', str(len(collection)))
-    return etree.tostring(collection, encoding='utf-8', xml_declaration=True,
-            pretty_print=True)
+    items = '\n'.join(collection)
+    return f'''<?xml version='1.0' encoding='utf-8'?>
+<recipe_collection xmlns="http://calibre-ebook.com/recipe_collection" count="{len(collection)}">
+{items}
+</recipe_collection>'''.encode()
 
 
 def serialize_builtin_recipes():
@@ -106,8 +127,7 @@ def get_builtin_recipe_collection():
 
 
 def get_custom_recipe_collection(*args):
-    from calibre.web.feeds.recipes import compile_recipe, \
-            custom_recipes
+    from calibre.web.feeds.recipes import compile_recipe, custom_recipes
     bdir = os.path.dirname(custom_recipes.file_path)
     rmap = {}
     for id_, x in iteritems(custom_recipes):
@@ -132,8 +152,7 @@ def update_custom_recipe(id_, title, script):
 
 
 def update_custom_recipes(script_ids):
-    from calibre.web.feeds.recipes import custom_recipes, \
-            custom_recipe_filename
+    from calibre.web.feeds.recipes import custom_recipe_filename, custom_recipes
 
     bdir = os.path.dirname(custom_recipes.file_path)
     for id_, title, script in script_ids:
@@ -162,8 +181,7 @@ def add_custom_recipe(title, script):
 
 
 def add_custom_recipes(script_map):
-    from calibre.web.feeds.recipes import custom_recipes, \
-            custom_recipe_filename
+    from calibre.web.feeds.recipes import custom_recipe_filename, custom_recipes
     id_ = 1000
     keys = tuple(map(int, custom_recipes))
     if keys:
@@ -217,9 +235,10 @@ def get_builtin_recipe_titles():
 
 
 def download_builtin_recipe(urn):
+    import bz2
+
     from calibre.utils.config_base import prefs
     from calibre.utils.https import get_https_resource_securely
-    import bz2
     recipe_source = bz2.decompress(get_https_resource_securely(
         'https://code.calibre-ebook.com/recipe-compressed/'+urn, headers={'CALIBRE-INSTALL-UUID':prefs['installation_uuid']}))
     recipe_source = recipe_source.decode('utf-8')
@@ -273,6 +292,13 @@ def get_builtin_recipe_by_id(id_, log=None, download_recipe=False):
                         log.exception(
                         'Failed to download recipe, using builtin version')
             return get_builtin_recipe(urn)
+
+
+class RecipeCustomization(NamedTuple):
+    add_title_tag: bool = False
+    custom_tags: Sequence[str] = ()
+    keep_issues: int = 0
+    recipe_specific_options: Optional[Dict[str, str]] = None
 
 
 class SchedulerConfig:
@@ -333,16 +359,17 @@ class SchedulerConfig:
             self.write_scheduler_file()
 
     # 'keep_issues' argument for recipe-specific number of copies to keep
-    def customize_recipe(self, urn, add_title_tag, custom_tags, keep_issues):
+    def customize_recipe(self, urn, val: RecipeCustomization):
         with self.lock:
             for x in list(self.iter_customization()):
                 if x.get('id') == urn:
                     self.root.remove(x)
             cs = E.recipe_customization({
-                'keep_issues' : keep_issues,
+                'keep_issues' : str(val.keep_issues),
                 'id' : urn,
-                'add_title_tag' : 'yes' if add_title_tag else 'no',
-                'custom_tags' : ','.join(custom_tags),
+                'add_title_tag' : 'yes' if val.add_title_tag else 'no',
+                'custom_tags' : ','.join(val.custom_tags),
+                'recipe_specific_options': json.dumps(val.recipe_specific_options or {}),
                 })
             self.root.append(cs)
             self.write_scheduler_file()
@@ -513,16 +540,17 @@ class SchedulerConfig:
     def get_customize_info(self, urn):
         keep_issues = 0
         add_title_tag = True
-        custom_tags = []
+        custom_tags = ()
+        recipe_specific_options = {}
         with self.lock:
             for x in self.iter_customization():
                 if x.get('id', False) == urn:
-                    keep_issues = x.get('keep_issues', '0')
+                    keep_issues = int(x.get('keep_issues', '0'))
                     add_title_tag = x.get('add_title_tag', 'yes') == 'yes'
-                    custom_tags = [i.strip() for i in x.get('custom_tags',
-                        '').split(',')]
+                    custom_tags = tuple(i.strip() for i in x.get('custom_tags', '').split(','))
+                    recipe_specific_options = json.loads(x.get('recipe_specific_options', '{}'))
                     break
-        return add_title_tag, custom_tags, keep_issues
+        return RecipeCustomization(add_title_tag, custom_tags, keep_issues, recipe_specific_options)
 
     def get_schedule_info(self, urn):
         with self.lock:

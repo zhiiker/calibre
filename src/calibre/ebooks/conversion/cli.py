@@ -6,16 +6,18 @@ __docformat__ = 'restructuredtext en'
 Command line interface to conversion sub-system
 '''
 
-import sys, os, numbers
-from optparse import OptionGroup, Option
+import numbers
+import os
+import sys
 from collections import OrderedDict
+from optparse import Option, OptionGroup
 
-from calibre.utils.config import OptionParser
-from calibre.utils.logging import Log
-from calibre.customize.conversion import OptionRecommendation
 from calibre import patheq
+from calibre.customize.conversion import OptionRecommendation
 from calibre.ebooks.conversion import ConversionUserFeedBack
+from calibre.utils.config import OptionParser
 from calibre.utils.localization import localize_user_manual_link
+from calibre.utils.logging import Log
 from polyglot.builtins import iteritems
 
 USAGE = '%prog ' + _('''\
@@ -87,13 +89,13 @@ def option_recommendation_to_cli_option(add_option, rec):
     switches.append('--'+opt.long_switch)
     attrs = dict(dest=opt.name, help=opt.help,
                      choices=opt.choices, default=rec.recommended_value)
-    if isinstance(rec.recommended_value, type(True)):
+    if isinstance(rec.recommended_value, bool):
         attrs['action'] = 'store_false' if rec.recommended_value else \
                           'store_true'
     else:
         if isinstance(rec.recommended_value, numbers.Integral):
             attrs['type'] = 'int'
-        if isinstance(rec.recommended_value, numbers.Real):
+        elif isinstance(rec.recommended_value, numbers.Real):
             attrs['type'] = 'float'
 
     if opt.long_switch == 'verbose':
@@ -119,6 +121,14 @@ def option_recommendation_to_cli_option(add_option, rec):
             ' dialog. Once you create the rules, you can use the "Export" button'
             ' to save them to a file.'
         )
+    elif opt.name == 'recipe_specific_option':
+        attrs['action'] = 'append'
+        attrs['help'] = _(
+            'Recipe specific options. Syntax is option_name:value. For example:'
+            ' {example}. Can be specified multiple'
+            ' times to set different options. To see a list of all available options'
+            ' for a recipe, use {list}.'
+        ).format(example='--recipe-specific-option=date:2030-11-31', list='--recipe-specific-option=list')
     if opt.name in DEFAULT_TRUE_OPTIONS and rec.recommended_value is True:
         switches = ['--disable-'+opt.long_switch]
     add_option(Option(*switches, **attrs))
@@ -237,7 +247,7 @@ def add_pipeline_options(parser, plumber):
                       'chapter', 'chapter_mark',
                       'prefer_metadata_cover', 'remove_first_image',
                       'insert_metadata', 'page_breaks_before',
-                      'remove_fake_margins', 'start_reading_at',
+                      'remove_fake_margins', 'start_reading_at', 'add_alt_text_to_img',
                   ]
                   )),
 
@@ -297,7 +307,7 @@ class ProgressBar:
 
 def create_option_parser(args, log):
     if '--version' in args:
-        from calibre.constants import __appname__, __version__, __author__
+        from calibre.constants import __appname__, __author__, __version__
         log(os.path.basename(args[0]), '('+__appname__, __version__+')')
         log('Created by:', __author__)
         raise SystemExit(0)
@@ -347,7 +357,8 @@ def escape_sr_pattern(exp):
 
 
 def read_sr_patterns(path, log=None):
-    import json, re
+    import json
+    import re
     pats = []
     with open(path, 'rb') as f:
         lines = f.read().decode('utf-8').splitlines()
